@@ -1,5 +1,5 @@
 # Tuner52 
-Join the [discord] (https://discord.gg/YwJ9cTmF2a)
+Join the [discord](https://discord.gg/YwJ9cTmF2a)
 
 A lightweight, in-game mod loader for [RALLY52](https://rally52.com/). 
 
