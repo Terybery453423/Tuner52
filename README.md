@@ -1,4 +1,5 @@
-# [Tuner52](https://discord.gg/YwJ9cTmF2a) 
+# Tuner52 
+Join the [discord] (https://discord.gg/YwJ9cTmF2a)
 
 A lightweight, in-game mod loader for [RALLY52](https://rally52.com/). 
 
@@ -28,7 +29,8 @@ Instead of installing a bunch of separate Tampermonkey scripts, this gives you a
 - **Golden Gate Bridge** (`bridge`) - Replaces your vehicle with the Golden Gate Bridge.
 - **Trippy Paint** (`trippy`) - Generates neon paint patterns and pushes them to your profile.
 - **Signature Paint** (`signature.json`) - Apply a custom RLE paint payload via the Fixes tab.
-
+- **Custom car models** - 
+Every car model youve seen on tiktok is also available here! And more are being developed!
 ### Contributing
 Want to add a mod?
 1. Fork the repository.
