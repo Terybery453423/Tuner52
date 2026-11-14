@@ -37,10 +37,17 @@
   {
   "id": "huracan_itasha",
   "name": "Lamborghini Huracan GT3 Itasha",
-  "desc": "WIP A GT3 race car covered in anime decals.",
+  "desc": "A GT3 race car covered in anime decals.",
   "author": "Terybery453423",
   "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/huracan_itasha.js"
   }, 
+  {
+  "id": "aston_safety",
+  "name": "F1 Safety Car (Aston Martin)",
+  "desc": "The iconic green Aston Martin Vantage F1 Safety Car. Stylized.",
+  "author": "Terybery453423",
+  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/aston_safety.js"
+  },
   {
     "id": "hitbox",
     "name": "Hitbox Viewer",
