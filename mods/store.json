@@ -9,7 +9,7 @@
   {
   "id": "codriver",
   "name": "PacenotePal Co-Driver",
-  "desc": "Live-fetches rally co-driver audio. Supports multiple languages.",
+  "desc": "Spoken pacenotes.",
   "author": "Terybery453423",
   "options": [
     "American", 
