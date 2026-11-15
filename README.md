@@ -23,8 +23,6 @@ Current Hub Version: 2.1.0
 4. Save and visit [rally52.com](https://rally52.com).
 5. Go to Settings and tap "SETTINGS" 5 times to reveal the Tuner52 tab.
 
-A hidden store can be toggled by tapping the STORE button 5 times once the hub is unlocked.
-
 ## Usage
 
 The hub adds two tabs to the Settings page.
