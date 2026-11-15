@@ -115,5 +115,13 @@
   "desc": "Dark blood-red aesthetic with a neon red glow.",
   "author": "Terybery453423",
   "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/themes/crimson_theme.js"
-   } 
+   },
+   {
+  "id": "cinematic_shaders",
+  "name": "Cinematic Shaders",
+  "desc": "Real WebGL post-processing. Sunrays, Bloom, Chromatic Aberration.",
+  "author": "Terybery453423",
+  "options": ["Sunrays & Bloom", "Cyberpunk", "VHS / Retro", "None"],
+  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/cinematic_shaders.js"
+   }
 ]
