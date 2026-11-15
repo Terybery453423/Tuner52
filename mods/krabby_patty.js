@@ -7,17 +7,16 @@
 
   const CAR_URL = 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/krabby_patty.glb';
 
-  // Adjust these if the Patty is facing the wrong way
+  // YOUR EXACT TUNED OFFSETS
   window.__r52kpRotX = 0.0000; 
-  window.__r52kpRotY = 0.0000;
+  window.__r52kpRotY = -1.5708;
   window.__r52kpRotZ = 0.0000;
   
-  // If it doesn't spawn perfectly, tweak these baked values (just like the RB16)
   window.__r52kpBaked = {
-    k: 1.0,
-    x: 0.0,
-    y: 0.0,
-    z: 0.0
+    k: 96.92,
+    x: 21.48,
+    y: 42.59,
+    z: -1.22
   };
 
   function getScene(){
