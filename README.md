@@ -1,50 +1,127 @@
-# Tuner52 
-Join the [discord](https://discord.gg/YwJ9cTmF2a)
+# Tuner52 (RALLY52 Mod Hub)
 
-A lightweight, in-game mod loader for [RALLY52](https://rally52.com/). 
+An open-source mod hub for [RALLY52](https://rally52.com), the daily WebGL rally game. It injects a hidden menu into the game's Settings page via Tampermonkey and fetches mods, themes, and assets dynamically from this repo.
 
-(everything last checked on rally52 update v0.9.3.5)
+License: GPL-3.0
+Current Hub Version: 2.1.0
 
-Instead of installing a bunch of separate Tampermonkey scripts, this gives you a single interface to manage add-ons, UI tweaks, and cosmetic mods right from the game's settings menu.
+## Features
 
-### Features
-- Injects directly into the game's Settings menu.
-- Tap the word "SETTINGS" 5 times to reveal the mod tabs.
-- One-click installs and uninstalls (uses `window.__r52ModCleanup` to cleanly reset the game state).
-- Auto-loads your enabled mods when you refresh the page.
-- Uses `GM_xmlhttpRequest` to bypass CORS/CSP when fetching mods from GitHub.
-- Includes a "Fixes" tab for signature paints and resetting glitched states.
+- Visual mods (car swaps, liveries, effect removers)
+- Live-fetched co-driver pacenote audio with multiple language options
+- Full UI theme replacements
+- Gameplay tweaks and performance adjustments
+- Multi-option mods (dropdown selection saved per-mod)
+- Automatic update notices when a new Hub version is released
+- Stealth unlock: menu is hidden until you tap "SETTINGS" 5 times
 
-### Installation
-1. Install a userscript manager for your browser (Tampermonkey, Userscripts for iOS, etc).
-2. Copy the [Mod Hub Loader script](https://github.com/Terybery453423/tuner52/blob/main/mod_hub.txt).
-3. Paste the script into Tampermonkey, or other userscript manager and save
-4. Open RALLY52, go to Settings, and tap "Settings" exactly 5 times.
-5. The MODS and FIXES tabs will appear. Open MODS to browse the store.
+## Installation
 
-### Available Mods
-- **Custom Model Loader** (`glb_gtlf_loader`) - Swaps the default car for your own 3D model.
-- **Squash & Stretch** (`squash_stretch`) - Adds bouncy, cartoon-style physics animations to the car.
-- **No Dust** (`no_dust`) - Disables tire dust trails.
-- **Golden Gate Bridge** (`bridge`) - Replaces your vehicle with the Golden Gate Bridge.
-- **Trippy Paint** (`trippy`) - Generates neon paint patterns and pushes them to your profile.
-- **Signature Paint** (`signature.json`) - Apply a custom RLE paint payload via the Fixes tab.
-- **Custom car models** - 
-Every car model youve seen on tiktok is also available here! And more are being developed!
-### Contributing
-Want to add a mod?
-1. Fork the repository.
-2. Add your `.js` file to the `/mods` folder.
-3. Add your metadata to `store.json`.
-4. Open a Pull Request.
+1. Install [Tampermonkey](https://www.tampermonkey.net/).
+2. Open `mod_hub.txt` and copy the entire script.
+3. Create a new Tampermonkey script and paste it in.
+4. Save and visit [rally52.com](https://rally52.com).
+5. Go to Settings and tap "SETTINGS" 5 times to reveal the Tuner52 tab.
 
-### Disclaimer
-This project is fan-made and not affiliated with the developers of RALLY52. Use mods at your own risk. Client-side mods are generally safe, but game updates can break functionality at any time. Don't use mods to ruin the experience for other players.
+A hidden store can be toggled by tapping the STORE button 5 times once the hub is unlocked.
 
+## Usage
 
+The hub adds two tabs to the Settings page.
 
+### TUNER52
 
-### License
-This project is licensed under the GNU General Public License v3.0 (GPLv3). See the [LICENSE](LICENSE) file for details. 
+The mod store. Browse and install mods here. Installed mods appear under the ACTIVE sub-tab, where each one can be toggled on or off, have its UI hidden or shown, or be fully removed.
 
-*Note: This license applies to the Mod Hub loader itself. Individual mods submitted to the `/mods` folder remain the intellectual property of their respective creators unless otherwise specified.*
+### FIXES
+
+Diagnostic and recovery tools, including:
+
+- Resetting the car model
+- Fixing a stuck camera FOV
+- Clearing local game data
+- Full factory reset
+
+## Store Categories
+
+Mods in the store fall into a few broad categories:
+
+- Car Models — custom vehicles ranging from open-wheelers to meme cars
+- Cosmetics — paint jobs, hitbox viewers, effect removers
+- Audio — live pacenote co-driver with selectable language
+- Themes — full UI reskins
+- Gameplay — physics tweaks and performance adjustments
+
+An additional hidden store unlocks tuning and recovery tools.
+
+## For Mod Developers
+
+Mods follow a simple lifecycle contract. Every mod should guard against double-loading and register a cleanup function so it can be uninstalled cleanly.
+
+```javascript
+(function(){
+  if (window.__my_mod_id) return;
+  window.__my_mod_id = true;
+
+  // Mod logic here.
+
+  window.__r52ModCleanup = window.__r52ModCleanup || {};
+  window.__r52ModCleanup['my_mod_id'] = function() {
+    // Undo DOM changes, clear intervals, delete flags.
+    delete window.__my_mod_id;
+  };
+})();
+```
+
+Hub API
+
+The hub injects the following APIs into the page context for mods to use:
+
+· window.__r52DownloadFile(url, name, onSuccess, onError) — download a file through Tampermonkey (bypasses CSP). Returns a Blob URL.
+· window.__r52ModUIToggles[id] — register a visibility callback so the hub can hide or show your mod's UI.
+· window.__r52ApplyUIToggle(id, visible) — called by the hub to apply a visibility state.
+· window.__r52ModCleanup[id] — register your teardown function.
+
+Mod Options
+
+A mod can expose a dropdown in the store by adding an options array to its entry in store.json:
+
+```json
+{
+  "id": "my_mod",
+  "name": "My Mod",
+  "desc": "Does something useful.",
+  "options": ["Option A", "Option B", "Option C"],
+  "url": "https://raw.githubusercontent.com/.../my_mod.js"
+}
+```
+
+The hub renders this as a <select> element. The user's choice is saved to localStorage under r52_opt_<mod_id>. Read it at startup:
+
+```javascript
+const choice = localStorage.getItem('r52_opt_my_mod') || 'Option A';
+```
+
+Updating the Hub
+
+When a newer Hub version is available, the TUNER52 tab shows an update banner. Click it to copy the latest script, then paste it into your Tampermonkey editor and save. Mods do not need updating — they are always fetched fresh from GitHub.
+
+Notes
+
+· Performance buff mods should not be stacked. Enable one at a time.
+· Some mods (such as extra tries) are not leaderboard-safe. This is called out in their store descriptions.
+· The game enforces a strict Content Security Policy. External audio and video must be converted to Base64 data URIs. See codriver.js for a reference implementation.
+
+License
+
+GPL-3.0. Free to use, modify, and redistribute under the same terms.
+
+Credits
+
+· Hub and mods: @Terybery453423
+· Pacenote audio: PacenotePal by Koenvh1
+· Game: RALLY52 by its respective developers
+
+Not affiliated with RALLY52. Use at your own risk.
+
+```
