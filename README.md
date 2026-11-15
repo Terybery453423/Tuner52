@@ -48,9 +48,6 @@ Mods in the store fall into a few broad categories:
 - Cosmetics — paint jobs, hitbox viewers, effect removers
 - Audio — live pacenote co-driver with selectable language
 - Themes — full UI reskins
-- Gameplay — physics tweaks and performance adjustments
-
-An additional hidden store unlocks tuning and recovery tools.
 
 ## For Mod Developers
 
