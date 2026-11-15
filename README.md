@@ -87,13 +87,14 @@ Mod Options
 A mod can expose a dropdown in the store by adding an options array to its entry in store.json:
 
 ```json
-{
+  {
   "id": "my_mod",
   "name": "My Mod",
   "desc": "Does something useful.",
+  "author": "your_name",
   "options": ["Option A", "Option B", "Option C"],
   "url": "https://raw.githubusercontent.com/.../my_mod.js"
-}
+  },
 ```
 
 The hub renders this as a <select> element. The user's choice is saved to localStorage under r52_opt_<mod_id>. Read it at startup:
