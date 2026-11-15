@@ -1,5 +1,7 @@
 # Tuner52 (RALLY52 Mod Hub)
 
+Join the [discord](https://discord.gg/ZqByvNByJt)
+
 An open-source mod hub for [RALLY52](https://rally52.com), the daily WebGL rally game. It injects a hidden menu into the game's Settings page via Tampermonkey and fetches mods, themes, and assets dynamically from this repo.
 
 License: GPL-3.0 
@@ -89,7 +91,7 @@ A mod can expose a dropdown in the store by adding an `options` array to its ent
   "author": "your_name",
   "options": ["Option A", "Option B", "Option C"],
   "url": "https://raw.githubusercontent.com/.../my_mod.js"
-  }, 
+  }
 ```
 
 The hub renders this as a `<select>` element. The user's choice is saved to `localStorage` under `r52_opt_<mod_id>`. Read it at startup:
