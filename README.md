@@ -109,8 +109,10 @@ When a newer Hub version is available, the TUNER52 tab shows an update banner. C
 Notes
 
 · Performance buff mods should not be stacked. Enable one at a time.
+
 · Some mods (such as extra tries) are not leaderboard-safe. This is called out in their store descriptions.
-· The game enforces a strict Content Security Policy. External audio and video must be converted to Base64 data URIs. See codriver.js for a reference implementation.
+
+· The game enforces a strict Content Security Policy. External audio and video must be converted to Base64 data URIs. See codriver.js for a reference implementation. 
 
 License
 
@@ -123,5 +125,3 @@ Credits
 · Game: RALLY52 by its respective developers
 
 Not affiliated with RALLY52. Use at your own risk.
-
-```
