@@ -9,10 +9,22 @@
   {
   "id": "codriver",
   "name": "PacenotePal Co-Driver",
-  "desc": "Live-fetches rally co-driver audio for corners, modifiers, and pace notes.",
+  "desc": "Live-fetches rally co-driver audio. Supports multiple languages.",
   "author": "Terybery453423",
+  "options": [
+    "American", 
+    "Chinese", 
+    "Dutch", 
+    "English", 
+    "English Woman", 
+    "French", 
+    "German", 
+    "Hungarian", 
+    "Italian", 
+    "Spanish"
+  ],
   "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/codriver.js"
-  }, 
+  },
   {
     "id": "squash_stretch",
     "name": "Squash & Stretch",
