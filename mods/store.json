@@ -117,11 +117,11 @@
   "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/themes/crimson_theme.js"
    },
    {
-  "id": "cinematic_shaders",
-  "name": "Cinematic Shaders",
+  "id": "aesthetic_shaders",
+  "name": "Aesthetic Shaders",
   "desc": "Real WebGL post-processing. Sunrays, Bloom, Chromatic Aberration.",
   "author": "Terybery453423",
   "options": ["Sunrays & Bloom", "Cyberpunk", "VHS / Retro", "None"],
-  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/cinematic_shaders.js"
+  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/aesthetic_shaders.js"
    }
 ]
