@@ -3,9 +3,13 @@
   if (window.__r52_codriver) return;
   window.__r52_codriver = true;
 
-  console.log("[Mod] PacenotePal Co-Driver loading...");
+  // Read the selected language from the Hub, default to English
+  const langSetting = localStorage.getItem('r52_opt_codriver') || 'English';
+  const safeLang = encodeURIComponent(langSetting); // Turns "English Woman" into "English%20Woman"
+  const AUDIO_BASE = `https://cdn.jsdelivr.net/gh/Koenvh1/PacenotePal@main/voices/${safeLang}/`;
 
-  const AUDIO_BASE = 'https://cdn.jsdelivr.net/gh/Koenvh1/PacenotePal@main/voices/English/';
+  console.log(`[Mod] PacenotePal Co-Driver loading (Language: ${langSetting})...`);
+
   let audioUnlocked = false;
   let isPreloading = false;
   const audioCache = {};
@@ -44,7 +48,6 @@
     }
 
     window.__r52DownloadFile(AUDIO_BASE + filename, filename, function(blobUrl) {
-      // Convert the Blob URL to a Base64 Data URI so the game's CSP allows it
       fetch(blobUrl)
         .then(r => r.blob())
         .then(blob => {
@@ -158,7 +161,7 @@
       new Audio(audioCache[baseFilename]).play().catch(e => {});
       
       if (fullFilename !== baseFilename) {
-        fetchAndCache(fullFilename, () => {}); // Silently download combo for next time
+        fetchAndCache(fullFilename, () => {}); 
       }
       return;
     }
