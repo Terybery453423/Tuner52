@@ -73,56 +73,53 @@ Mods follow a simple lifecycle contract. Every mod should guard against double-l
 })();
 ```
 
-Hub API
+### Hub API
 
 The hub injects the following APIs into the page context for mods to use:
 
-· window.__r52DownloadFile(url, name, onSuccess, onError) — download a file through Tampermonkey (bypasses CSP). Returns a Blob URL.
-· window.__r52ModUIToggles[id] — register a visibility callback so the hub can hide or show your mod's UI.
-· window.__r52ApplyUIToggle(id, visible) — called by the hub to apply a visibility state.
-· window.__r52ModCleanup[id] — register your teardown function.
+- `window.__r52DownloadFile(url, name, onSuccess, onError)` — download a file through Tampermonkey (bypasses CSP). Returns a Blob URL.
+- `window.__r52ModUIToggles[id]` — register a visibility callback so the hub can hide or show your mod's UI.
+- `window.__r52ApplyUIToggle(id, visible)` — called by the hub to apply a visibility state.
+- `window.__r52ModCleanup[id]` — register your teardown function.
 
-Mod Options
+### Mod Options
 
-A mod can expose a dropdown in the store by adding an options array to its entry in store.json:
+A mod can expose a dropdown in the store by adding an `options` array to its entry in `store.json`:
 
 ```json
-  {
+{
   "id": "my_mod",
   "name": "My Mod",
   "desc": "Does something useful.",
-  "author": "your_name",
   "options": ["Option A", "Option B", "Option C"],
   "url": "https://raw.githubusercontent.com/.../my_mod.js"
-  },
+}
 ```
 
-The hub renders this as a <select> element. The user's choice is saved to localStorage under r52_opt_<mod_id>. Read it at startup:
+The hub renders this as a `<select>` element. The user's choice is saved to `localStorage` under `r52_opt_<mod_id>`. Read it at startup:
 
 ```javascript
 const choice = localStorage.getItem('r52_opt_my_mod') || 'Option A';
 ```
 
-Updating the Hub
+## Updating the Hub
 
 When a newer Hub version is available, the TUNER52 tab shows an update banner. Click it to copy the latest script, then paste it into your Tampermonkey editor and save. Mods do not need updating — they are always fetched fresh from GitHub.
 
-Notes
+## Notes
 
-· Performance buff mods should not be stacked. Enable one at a time.
+- Performance buff mods should not be stacked. Enable one at a time.
+- Some mods (such as extra tries) are not leaderboard-safe. This is called out in their store descriptions.
+- The game enforces a strict Content Security Policy. External audio and video must be converted to Base64 data URIs. See `codriver.js` for a reference implementation.
 
-· Some mods (such as extra tries) are not leaderboard-safe. This is called out in their store descriptions.
-
-· The game enforces a strict Content Security Policy. External audio and video must be converted to Base64 data URIs. See codriver.js for a reference implementation. 
-
-License
+## License
 
 GPL-3.0. Free to use, modify, and redistribute under the same terms.
 
-Credits
+## Credits
 
-· Hub and mods: @Terybery453423
-· Pacenote audio: PacenotePal by Koenvh1
-· Game: RALLY52 by its respective developers
+- Hub and mods: [@Terybery453423](https://github.com/Terybery453423)
+- Pacenote audio: [PacenotePal](https://github.com/Koenvh1/PacenotePal) by Koenvh1
+- Game: RALLY52 by its respective developers
 
 Not affiliated with RALLY52. Use at your own risk.
