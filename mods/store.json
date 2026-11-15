@@ -68,6 +68,13 @@
   "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/aston_safety.js"
   },
   {
+  "id": "krabby_patty",
+  "name": "Krabby Patty Car",
+  "desc": "Deliver the secret formula across the finish line.",
+  "author": "Terybery453423",
+  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/krabby_patty.js"
+  },
+  {
     "id": "hitbox",
     "name": "Hitbox Viewer",
     "desc": "Draws a neon wireframe box around your car to show the exact 3D hitbox.",
