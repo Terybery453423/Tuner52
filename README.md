@@ -87,13 +87,14 @@ The hub injects the following APIs into the page context for mods to use:
 A mod can expose a dropdown in the store by adding an `options` array to its entry in `store.json`:
 
 ```json
-{
+  {
   "id": "my_mod",
   "name": "My Mod",
   "desc": "Does something useful.",
+  "author": "your_name",
   "options": ["Option A", "Option B", "Option C"],
   "url": "https://raw.githubusercontent.com/.../my_mod.js"
-}
+  }, 
 ```
 
 The hub renders this as a `<select>` element. The user's choice is saved to `localStorage` under `r52_opt_<mod_id>`. Read it at startup:
@@ -118,7 +119,7 @@ GPL-3.0. Free to use, modify, and redistribute under the same terms.
 
 ## Credits
 
-- Hub and mods: [@Terybery453423](https://github.com/Terybery453423)
+- Hub and mods: [@Terybery453423](https://github.com/Terybery453423) (aka me) 
 - Pacenote audio: [PacenotePal](https://github.com/Koenvh1/PacenotePal) by Koenvh1
 - Game: RALLY52 by its respective developers
 
