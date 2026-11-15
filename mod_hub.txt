@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tuner52 (RALLY52)
 // @namespace    https://github.com/Terybery453423
-// @version      2.0.11
+// @version      2.1.0
 // @description  Tuner52 - Stealth mod menu for RALLY52. Tap Settings 5 times to unlock.
 // @match        https://rally52.com/*
 // @grant        GM_xmlhttpRequest
@@ -16,7 +16,7 @@
   'use strict';
   if (window.__r52hub) return; window.__r52hub = 1;
 
-  const HUB_VERSION = '2.0.11'; 
+  const HUB_VERSION = '2.1.0'; 
   
   const REPO = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/';
   const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
@@ -67,7 +67,7 @@
     }
   }
 
-  // 2. Inject to Page (FIXED PROMISE)
+  // 2. Inject to Page
   function inject(code) {
     return new Promise((resolve) => {
       const evt = 'r52_inject_' + Math.random().toString(36);
@@ -129,14 +129,13 @@
     if (active[m.id] === false) return;
     try {
       const code = await fetchText(m.url);
-      await inject(code); // Waits properly now!
+      await inject(code);
       
       const isHidden = localStorage.getItem('r52_ui_' + m.id) === 'true';
       if (isHidden) {
         await inject(`if(window.__r52ApplyUIToggle) window.__r52ApplyUIToggle('${m.id}', false);`);
       }
 
-      // Refresh ACTIVE tab if it's currently open so the UI button appears immediately
       const aTab = Array.from(document.querySelectorAll('.mi')).find(b => b.textContent === '⚡ ACTIVE');
       if (aTab && aTab.classList.contains('sel')) {
         const mUI = document.getElementById('r52_mods_ui');
@@ -355,6 +354,32 @@
         const r = document.createElement('div'); r.className = 'orow'; r.style.padding = '10px';
         r.innerHTML = `<div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;"><span style="font-size:13px; color:${m.isSecret?'#ef4444':'var(--ink)'};">${m.name}</span><span style="font-size:10px; color:var(--mute); text-transform:none;">${m.desc}</span></div>`;
 
+        // --- NEW: LANGUAGE OPTIONS DROPDOWN ---
+        if (m.options && m.options.length > 0) {
+            const select = document.createElement('select');
+            select.style.cssText = 'background:var(--card2); color:var(--ink); border:1px solid var(--line); padding:6px; border-radius:4px; font-size:12px; margin:6px 0; width:100%; outline:none; cursor:pointer;';
+            
+            const savedChoice = localStorage.getItem('r52_opt_' + m.id) || m.options[0];
+            
+            m.options.forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt; o.textContent = opt;
+                if (opt === savedChoice) o.selected = true;
+                select.appendChild(o);
+            });
+            
+            select.onchange = async (e) => {
+                localStorage.setItem('r52_opt_' + m.id, e.target.value);
+                if (installed.includes(m.id) && active[m.id] !== false) {
+                    // Reload the mod instantly to apply the new language
+                    inject(`if(window.__r52ModCleanup&&window.__r52ModCleanup['${m.id}'])window.__r52ModCleanup['${m.id}']();`);
+                    await loadMod(m);
+                    alert('Language updated! Restart the mod if the menu is still open.');
+                }
+            };
+            r.appendChild(select);
+        }
+
         const b = btn(isInstalled?'REMOVE':'INSTALL', isInstalled?'var(--red)':'var(--card3)', async (e) => {
           e.target.disabled = true;
           if (installed.includes(m.id)) {
@@ -398,7 +423,6 @@
         const isOn = active[id] !== false;
         const isUIHidden = localStorage.getItem('r52_ui_' + id) === 'true';
 
-        // FIXED CSS: Custom inline styles so it expands freely without the game's .orow restrictions
         const card = document.createElement('div'); 
         card.style.cssText = 'display:flex; flex-direction:column; padding:12px; gap:10px; cursor:pointer; border:1px solid ' + (isOn ? '#4ade80' : 'var(--line)') + '; border-radius:8px; background:var(--card2); width:100%; box-sizing:border-box; transition: border-color 0.2s;';
 
@@ -409,11 +433,7 @@
         const opts = document.createElement('div');
         opts.style.cssText = 'display:none; gap:6px; width:100%; margin-top:5px;';
 
-        // FIXED UI DETECTION: Fallback to window if unsafeWindow fails
-        let hasUI = false;
-        try { hasUI = typeof unsafeWindow.__r52ModUIToggles?.[id] === 'function'; } catch(e) {}
-        if (!hasUI) { try { hasUI = typeof window.__r52ModUIToggles?.[id] === 'function'; } catch(e) {} }
-
+        const hasUI = typeof unsafeWindow.__r52ModUIToggles?.[id] === 'function';
         if (hasUI) {
           const uiBtn = btn(isUIHidden ? 'SHOW UI' : 'HIDE UI', 'var(--card3)', (e) => {
             e.stopPropagation();
