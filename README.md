@@ -2,7 +2,7 @@
 
 An open-source mod hub for [RALLY52](https://rally52.com), the daily WebGL rally game. It injects a hidden menu into the game's Settings page via Tampermonkey and fetches mods, themes, and assets dynamically from this repo.
 
-License: GPL-3.0
+License: GPL-3.0 
 Current Hub Version: 2.1.0
 
 ## Features
