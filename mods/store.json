@@ -7,6 +7,13 @@
     "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/glb_gtlf_loader.js"
   },
   {
+  "id": "codriver",
+  "name": "PacenotePal Co-Driver",
+  "desc": "Live-fetches rally co-driver audio for corners, modifiers, and pace notes.",
+  "author": "Terybery453423",
+  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/codriver.js"
+  }, 
+  {
     "id": "squash_stretch",
     "name": "Squash & Stretch",
     "desc": "Makes your custom car bounce and stretch like toyota yaris.",
