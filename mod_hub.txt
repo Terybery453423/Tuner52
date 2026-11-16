@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tuner52 (RALLY52)
 // @namespace    https://github.com/Terybery453423
-// @version      2.1.0
+// @version      2.1.2
 // @description  Tuner52 - Stealth mod menu for RALLY52. Tap Settings 5 times to unlock.
 // @match        https://rally52.com/*
 // @grant        GM_xmlhttpRequest
@@ -16,7 +16,7 @@
   'use strict';
   if (window.__r52hub) return; window.__r52hub = 1;
 
-  const HUB_VERSION = '2.1.0'; 
+  const HUB_VERSION = '2.1.2'; 
   
   const REPO = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/';
   const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
@@ -81,23 +81,47 @@
     });
   }
 
-  // 2.5 Expose Hub API for Mods
-  inject(`
-    window.__r52DownloadFile = function(url, name, onSuccess, onError) {
-      const id = Math.random().toString(36);
-      window._r52_dl_resolvers = window._r52_dl_resolvers || {};
-      window._r52_dl_resolvers[id] = { onSuccess, onError };
-      window.dispatchEvent(new CustomEvent('r52_hub_download', { detail: { url, name, id } }));
-    };
-    window.__r52ModUIToggles = window.__r52ModUIToggles || {};
-    window.__r52ApplyUIToggle = function(id, visible) {
-      if (window.__r52ModUIToggles[id]) {
-        window.__r52ModUIToggles[id](visible);
-      }
-    };
-  `);
+ // 2.5 Expose Hub API for Mods
+inject(`
+  window.__r52DownloadFile = function(url, name, onSuccess, onError) {
+    const id = Math.random().toString(36);
+    window._r52_dl_resolvers = window._r52_dl_resolvers || {};
+    window._r52_dl_resolvers[id] = { onSuccess, onError };
+    window.dispatchEvent(new CustomEvent('r52_hub_download', { detail: { url, name, id } }));
+  };
+  window.__r52ModUIToggles = window.__r52ModUIToggles || {};
+  window.__r52ApplyUIToggle = function(id, visible) {
+    if (window.__r52ModUIToggles[id]) {
+      window.__r52ModUIToggles[id](visible);
+    }
+  };
+`);
 
-  window.addEventListener('r52_hub_download', (e) => {
+// --- ADD THE NEW WEBSOCKET RELAY HERE ---
+let hubWs = null;
+window.addEventListener('r52_ws_connect', (e) => {
+  if (hubWs) hubWs.close();
+  try {
+    hubWs = new WebSocket(e.detail.url);
+    hubWs.onopen = () => unsafeWindow.dispatchEvent(new CustomEvent('r52_ws_open'));
+    hubWs.onmessage = (msg) => unsafeWindow.dispatchEvent(new CustomEvent('r52_ws_message', { detail: msg.data }));
+    hubWs.onclose = () => unsafeWindow.dispatchEvent(new CustomEvent('r52_ws_close'));
+    hubWs.onerror = () => unsafeWindow.dispatchEvent(new CustomEvent('r52_ws_close'));
+  } catch(err) {
+    console.error("[Tuner52] WS Relay Error:", err);
+  }
+});
+
+window.addEventListener('r52_ws_send', (e) => {
+  if (hubWs && hubWs.readyState === 1) hubWs.send(e.detail);
+});
+
+window.addEventListener('r52_ws_disconnect', () => {
+  if (hubWs) hubWs.close();
+});
+// ---------------------------------------
+
+window.addEventListener('r52_hub_download', (e) => {
     const { url, name, id } = e.detail;
     xhr({ 
       method: 'GET', url: url, responseType: 'blob', timeout: 30000,
