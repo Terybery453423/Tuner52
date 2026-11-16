@@ -1,16 +1,18 @@
-// == Global Multiplayer (Claude's Bridge) ==
+// == Global Multiplayer (Working WebSocket) ==
 (function(){
   if (window.__r52_globalMulti) return;
   window.__r52_globalMulti = true;
 
-  // Using Postman echo just to test the bridge
-  const WS_URL = 'wss://ws.postman-echo.com/raw'; 
+  // Use a public broadcast relay instead of echo
+  const WS_URL = 'wss://socketsbay.com/wss/v2/1/demo/'; 
+  
+  // Generate a unique ID for this player
+  const myId = Math.random().toString(36).substring(2, 9);
   
   let ghostCar = null;
   let lastSend = 0;
   let sendInterval = null;
 
-  // --- UI STATUS ELEMENT ---
   const ui = document.createElement('div');
   ui.style.cssText = 'position:fixed; bottom:20px; right:20px; background:rgba(0,0,0,0.8); color:#00ffcc; padding:8px 12px; border-radius:6px; font-family:monospace; font-size:12px; z-index:9999; pointer-events:none; border:1px solid #00ffcc;';
   document.body.appendChild(ui);
@@ -21,7 +23,7 @@
   }
   setStatus('CONNECTING...');
 
-  // --- CLAUDE'S NET BRIDGE ---
+  // --- NETWORK BRIDGE ---
   const Net = (() => {
     const handlers = {};
     const toHub = (t, d = '') =>
@@ -60,7 +62,6 @@
     retry = 0;
     setStatus('ONLINE', '#4ade80');
     
-    // Start sending our position
     if (sendInterval) clearInterval(sendInterval);
     sendInterval = setInterval(() => {
       const now = Date.now();
@@ -96,7 +97,9 @@
         ghostCar = wrap;
       }
 
+      // Send our position AND our unique ID
       Net.send({
+        id: myId,
         x: carGroup.position.x,
         y: carGroup.position.y,
         z: carGroup.position.z,
@@ -111,6 +114,10 @@
     if (ghostCar) {
       try {
         const p = JSON.parse(data);
+        
+        // CRITICAL: Ignore our own messages!
+        if (p.id === myId) return;
+        
         ghostCar.position.lerp(new THREE.Vector3(p.x, p.y, p.z), 0.3);
         ghostCar.rotation.x += (p.rx - ghostCar.rotation.x) * 0.3;
         ghostCar.rotation.y += (p.ry - ghostCar.rotation.y) * 0.3;
