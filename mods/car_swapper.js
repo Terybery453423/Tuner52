@@ -23,23 +23,25 @@
     },
     "Trackmania Car": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/tmnf_car.glb',
-      rotX: 0, rotY: 0, rotZ: 0,
-      k: 1.0, x: 0, y: 0, z: 0 // Adjust if needed
+      rotX: -0.1916, rotY: 0.59, rotZ: 0.1084,
+      k: 94.70, x: -19.53, y: 43.00, z: 365.90
     },
     "Lamborghini Huracan": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/huracan_itasha.glb',
       rotX: 0, rotY: 0, rotZ: 0,
-      k: 1.0, x: 0, y: 0, z: 0 // Adjust if needed
+      k: 100, x: 0, y: 0, z: 0 // Adjust if needed
     },
     "Aston Safety Car": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/aston_safety.glb',
       rotX: 0, rotY: 0, rotZ: 0,
-      k: 1.0, x: 0, y: 0, z: 0 // Adjust if needed
+      k: 100, x: 0, y: 0, z: 0 // Adjust if needed
     },
     "Golden Gate Bridge": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/Golden_Gate_Bridge.glb',
-      rotX: 0, rotY: 0, rotZ: 0,
-      k: 1.0, x: 0, y: 0, z: 0 // Adjust if needed
+      rotX: 5 * Math.PI / 180, rotY: -Math.PI * 0.75, rotZ: 0,
+      k: null, x: 0, y: null, z: 0, // 'null' triggers the dynamic bridge logic below
+      bridgeScaleMul: 100.0,
+      bridgeYOffset: -12
     }
   };
 
