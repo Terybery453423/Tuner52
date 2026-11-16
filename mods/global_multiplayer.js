@@ -3,8 +3,8 @@
   if (window.__r52_globalMulti) return;
   window.__r52_globalMulti = true;
 
-  // Swapped to a reliable public echo server
-  const WS_URL = 'wss://echo.websocket.events';
+  // Postman's echo server is highly reliable
+  const WS_URL = 'wss://ws.postman-echo.com/raw';
   
   let ghostCar = null;
   let lastSend = 0;
@@ -16,10 +16,10 @@
   ui.textContent = `🌐 MULTIPLAYER: CONNECTING...`;
   document.body.appendChild(ui);
 
-  // Tell the Hub to open the WebSocket (using document)
+  // Tell the Hub to open the WebSocket
   document.dispatchEvent(new CustomEvent('r52_ws_connect', { detail: { url: WS_URL } }));
 
-  // Listen for Hub events on document
+  // Listen for Hub events
   document.addEventListener('r52_ws_open', () => {
     console.log("[Mod] WebSocket Connected via Hub!");
     ui.textContent = `🌐 MULTIPLAYER: ONLINE`;
