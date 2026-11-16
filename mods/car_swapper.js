@@ -3,82 +3,163 @@
   if (window.__r52_carSwapper) return;
   window.__r52_carSwapper = true;
 
+  // Read the selected car from the Hub Options
   const selectedCar = localStorage.getItem('r52_opt_car_swapper') || 'None';
   if (selectedCar === 'None') return;
 
   console.log("[Mod] Car Swapper loading: " + selectedCar);
 
-  // EXACT VALUES PULLED FROM YOUR STANDALONE SCRIPTS
+  // CONFIGURATION MAP
   const CARS = {
     "Red Bull RB16": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/rb16.glb',
-      rotX: 0.0000, rotY: 0.0000, rotZ: 0.0000,
+      rotX: 0, rotY: 0, rotZ: 0,
       k: 16.65, x: 40359.93, y: -2456.30, z: 21229.67
     },
     "Krabby Patty": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/krabby_patty.glb',
-      rotX: 0.0000, rotY: -1.5708, rotZ: 0.0000,
+      rotX: 0, rotY: -1.5708, rotZ: 0,
       k: 96.92, x: 21.48, y: 42.59, z: -1.22
     },
     "Trackmania Car": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/tmnf_car.glb',
-      rotX: -0.1916, rotY: 0.59, rotZ: 0.1084,
-      k: 94.70, x: -19.53, y: 43.00, z: 365.90
+      rotX: 0, rotY: 0, rotZ: 0,
+      k: 1.0, x: 0, y: 0, z: 0 // Adjust if needed
     },
     "Lamborghini Huracan": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/huracan_itasha.glb',
-      rotX: 0.0000, rotY: 0.0000, rotZ: 0.0000,
-      k: 100, x: 0, y: 0, z: 0
+      rotX: 0, rotY: 0, rotZ: 0,
+      k: 1.0, x: 0, y: 0, z: 0 // Adjust if needed
     },
     "Aston Safety Car": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/aston_safety.glb',
-      rotX: 0.0000, rotY: 0.0000, rotZ: 0.0000,
-      k: 100, x: 0, y: 0, z: 0
+      rotX: 0, rotY: 0, rotZ: 0,
+      k: 1.0, x: 0, y: 0, z: 0 // Adjust if needed
     },
-    // Bridge uses a dynamic calculation in its original script, 
-    // these are the base multipliers it uses:
     "Golden Gate Bridge": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/Golden_Gate_Bridge.glb',
-      rotX: 5 * Math.PI / 180, rotY: -Math.PI * 0.75, rotZ: 0,
-      k: null, x: 0, y: null, z: 0, // 'null' triggers the dynamic bridge logic below
-      bridgeScaleMul: 100.0,
-      bridgeYOffset: -12
+      rotX: 0, rotY: 0, rotZ: 0,
+      k: 1.0, x: 0, y: 0, z: 0 // Adjust if needed
     }
   };
 
   const config = CARS[selectedCar];
   if (!config) return;
 
-  // ... (rest of the script remains exactly the same) ...
-
-  // Inside the interval loop, you'll need to add this check to handle the bridge:
-  // (This replaces the standard model.scale.set and position.set logic)
-  
-  /*
-  if (config.k === null) {
-    // DYNAMIC BRIDGE LOGIC
-    var origBox = new THREE.Box3().setFromObject(scaled);
-    var origSize = origBox.getSize(new THREE.Vector3());
-    var origLongest = Math.max(origSize.x, origSize.y, origSize.z);
-    
-    var box = new THREE.Box3().setFromObject(model);
-    var size = box.getSize(new THREE.Vector3());
-    var longest = Math.max(size.x, size.y, size.z) || 1;
-    
-    var baseK = (origLongest / 0.01) / longest;
-    var k = baseK * config.bridgeScaleMul;
-    
-    model.scale.set(k, k, k);
-    
-    var box2 = new THREE.Box3().setFromObject(model);
-    var center = box2.getCenter(new THREE.Vector3());
-    
-    model.position.set(-center.x, -box2.min.y + config.bridgeYOffset, -center.z);
-  } else {
-    // STANDARD LOGIC (for all other cars)
-    model.scale.set(config.k, config.k, config.k);
-    model.position.set(config.x, config.y, config.z);
+  function getScene(){
+    if (window.__r52sceneCached && window.__r52sceneCached.type === "Scene") return window.__r52sceneCached;
+    try { if (typeof cam !== "undefined" && cam) { var p = cam; while (p.parent) p = p.parent; if (p.type === "Scene") { window.__r52sceneCached = p; return p; } } } catch(e){}
+    try { if (typeof sky !== "undefined" && sky) { var p2 = sky; while (p2.parent) p2 = p2.parent; if (p2.type === "Scene") { window.__r52sceneCached = p2; return p2; } } } catch(e){}
+    return null;
   }
-  */
 
+  function findCarGroup(sc){
+    if (!sc || !sc.children) return null;
+    for (var k = sc.children.length - 1; k >= 0; k--) {
+      var c = sc.children[k];
+      if (c.type === "Group" && c.userData && c.userData.base) return c;
+    }
+    return null;
+  }
+
+  function downloadModel() {
+    if (window.__r52DownloadFile) {
+      window.__r52DownloadFile(config.url, selectedCar, function(dataUrl) {
+        if (!window.THREE || !THREE.GLTFLoader) { return; }
+        var loader = new THREE.GLTFLoader();
+        loader.load(dataUrl, function(gltf){
+          window.__r52csStash = gltf.scene;
+          console.log("[Mod] Model parsed: " + selectedCar);
+        }, undefined, function(err){
+          console.error("[Mod] Failed to parse GLB:", err);
+        });
+      }, function(err) {
+        console.error("[Mod] Failed to download model:", err);
+      });
+    }
+  }
+
+  var intervalId = setInterval(function(){
+    var sc = getScene(); if (!sc) return;
+    var cg = findCarGroup(sc); if (!cg) return;
+    
+    var scaled = null;
+    for (var j = 0; j < cg.children.length; j++) {
+      var ch = cg.children[j];
+      if (ch.type === "Group" && ch.scale && Math.abs(ch.scale.x - 0.01) < 0.001) { scaled = ch; break; }
+    }
+    if (!scaled) scaled = cg.children[0];
+    if (!scaled) return;
+
+    if (!window.__r52csStash) return;
+
+    var existing = null;
+    for (var i = 0; i < cg.children.length; i++) {
+      if (cg.children[i].name === "__r52csWrap") { existing = cg.children[i]; break; }
+    }
+
+    if (existing) {
+      existing.position.copy(scaled.position);
+      existing.rotation.copy(scaled.rotation);
+      existing.rotation.x += config.rotX;
+      existing.rotation.y += config.rotY;
+      existing.rotation.z += config.rotZ;
+      scaled.visible = false;
+      return;
+    }
+
+    try {
+      var wrap = new THREE.Group();
+      wrap.name = "__r52csWrap";
+      wrap.position.copy(scaled.position);
+      wrap.rotation.copy(scaled.rotation);
+      wrap.rotation.x += config.rotX;
+      wrap.rotation.y += config.rotY;
+      wrap.rotation.z += config.rotZ;
+      wrap.scale.setScalar(0.01);
+
+      var model = window.__r52csStash;
+      if (model.parent) model.parent.remove(model);
+      
+      model.scale.set(config.k, config.k, config.k);
+      model.position.set(config.x, config.y, config.z);
+
+      wrap.add(model);
+      cg.add(wrap);
+      
+      scaled.visible = false;
+      window.__r52csGroup = wrap;
+      window.__r52csModel = model;
+      
+      console.log("[Mod] Swapped in: " + selectedCar);
+    } catch(e) { 
+      console.error("[Mod] Swap error:", e); 
+    }
+  }, 300);
+
+  setTimeout(downloadModel, 1000);
+
+  window.__r52ModCleanup = window.__r52ModCleanup || {};
+  window.__r52ModCleanup['car_swapper'] = function() {
+    clearInterval(intervalId);
+    if (window.__r52csGroup && window.__r52csGroup.parent) {
+      window.__r52csGroup.parent.remove(window.__r52csGroup);
+    }
+    var sc = getScene();
+    if (sc) {
+      var cg = findCarGroup(sc);
+      if (cg) {
+        for (var j = 0; j < cg.children.length; j++) {
+          if (cg.children[j].scale && Math.abs(cg.children[j].scale.x - 0.01) < 0.001) {
+            cg.children[j].visible = true;
+          }
+        }
+      }
+    }
+    delete window.__r52_carSwapper;
+    delete window.__r52csGroup;
+    delete window.__r52csModel;
+    delete window.__r52csStash;
+    console.log("[Mod] Car Swapper cleaned up.");
+  };
 })();
