@@ -33,46 +33,12 @@
     "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/squash_stretch.js"
   },
   {
-    "id": "bridge",
-    "name": "Golden Gate Bridge",
-    "desc": "Replaces your car with the Golden Gate Bridge.",
-    "author": "Terybery453423",
-    "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/bridge.js"
-  },
-  {
-    "id": "tmnf_car",
-    "name": "Trackmania Car",
-    "desc": "Replaces the default car with the classic Trackmania Stadium Car.",
-    "author": "Terybery453423",
-    "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/tmnf_car.js"
-  },
-  {
-  "id": "redbull_car",
-  "name": "Red Bull RB16 F1",
-  "desc": "Replaces the default car with the Red Bull RB16 Formula 1 car.",
+  "id": "car_swapper",
+  "name": "Car Swapper",
+  "desc": "Replaces your car with any custom model from the repository.",
   "author": "Terybery453423",
-  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/redbull_car.js"
-  },
-  {
-  "id": "huracan_itasha",
-  "name": "Lamborghini Huracan GT3 Itasha",
-  "desc": "A GT3 race car covered in anime decals.",
-  "author": "Terybery453423",
-  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/huracan_itasha.js"
-  }, 
-  {
-  "id": "aston_safety",
-  "name": "F1 Safety Car (Aston Martin)",
-  "desc": "The iconic green Aston Martin Vantage F1 Safety Car. Stylized.",
-  "author": "Terybery453423",
-  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/aston_safety.js"
-  },
-  {
-  "id": "krabby_patty",
-  "name": "Krabby Patty Car",
-  "desc": "Deliver the secret formula across the finish line.",
-  "author": "Terybery453423",
-  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/krabby_patty.js"
+  "options": ["None", "Red Bull RB16", "Krabby Patty", "Trackmania Car", "Lamborghini Huracan", "Aston Safety Car", "Golden Gate Bridge"],
+  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/car_swapper.js"
   },
   {
     "id": "hitbox",
