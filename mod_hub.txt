@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tuner52 (RALLY52)
 // @namespace    https://github.com/Terybery453423
-// @version      2.1.4
+// @version      2.1.5
 // @description  Tuner52 - Stealth mod menu for RALLY52. Tap Settings 5 times to unlock.
 // @match        https://rally52.com/*
 // @grant        GM_xmlhttpRequest
@@ -17,7 +17,7 @@
   'use strict';
   if (window.__r52hub) return; window.__r52hub = 1;
 
-  const HUB_VERSION = '2.1.4'; 
+  const HUB_VERSION = '2.1.5'; 
   
   const REPO = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/';
   const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
@@ -98,37 +98,58 @@
     };
   `);
 
-  // --- WEBSOCKET RELAY (Using unsafeWindow to bypass Firefox sandbox) ---
-  let hubWs = null;
-  unsafeWindow.addEventListener('r52_ws_connect', (e) => {
-    console.log("[Tuner52] Hub received connect request:", e.detail);
-    if (hubWs) hubWs.close();
+  // --- WEBSOCKET RELAY (Clean) ---
+  const dbg = (msg) => console.log('[Tuner52]', msg);
+  const page = unsafeWindow;
+  
+  const toPage = (t, d = '') => {
+    const init = { detail: JSON.stringify({ t, d }) };
+    page.dispatchEvent(new page.CustomEvent('r52-to-page',
+      typeof cloneInto === 'function' ? cloneInto(init, page) : init));
+  };
+
+  let hubWs = null, openTimer = null;
+  const closeWs = () => {
+    clearTimeout(openTimer);
+    if (hubWs) { try { hubWs.close(); } catch (_) {} hubWs = null; }
+  };
+
+  function connect(url) {
+    closeWs();
+    dbg('connect -> ' + url);
+    let opened = false;
     try {
-      hubWs = new WebSocket(e.detail);
-      hubWs.onopen = () => {
-        console.log("[Tuner52] WS Connected natively!");
-        unsafeWindow.dispatchEvent(new CustomEvent('r52_ws_open'));
-      };
-      hubWs.onmessage = (msg) => {
-        unsafeWindow.dispatchEvent(new CustomEvent('r52_ws_message', { detail: msg.data }));
-      };
-      hubWs.onclose = () => unsafeWindow.dispatchEvent(new CustomEvent('r52_ws_close'));
-      hubWs.onerror = (err) => {
-        console.error("[Tuner52] Hub WS Error:", err);
-        unsafeWindow.dispatchEvent(new CustomEvent('r52_ws_close'));
-      };
-    } catch(err) {
-      console.error("[Tuner52] WS Relay Error:", err);
+      hubWs = new WebSocket(url); 
+    } catch (err) {
+      dbg('ctor error: ' + err);
+      toPage('error', 'ctor: ' + err);
+      return;
     }
+    const mine = hubWs;
+    openTimer = setTimeout(() => {
+      if (!opened) {
+        dbg('open timeout');
+        toPage('error', 'timeout');
+        closeWs();
+      }
+    }, 8000);
+    mine.onopen = () => { opened = true; clearTimeout(openTimer); dbg('WS open'); toPage('open'); };
+    mine.onmessage = (m) => { if (typeof m.data === 'string') toPage('message', m.data); };
+    mine.onerror = () => { dbg('WS error'); toPage('error', 'ws error'); };
+    mine.onclose = () => { dbg('WS close'); if (hubWs === mine) hubWs = null; toPage('close'); };
+  }
+
+  page.addEventListener('r52-to-hub', (e) => {
+    let m;
+    try { m = JSON.parse(String(e.detail)); } catch (_) { return; }
+    if (m.t === 'ping') { toPage('pong'); }
+    else if (m.t === 'connect') connect(String(m.d));
+    else if (m.t === 'send') { if (hubWs && hubWs.readyState === 1) hubWs.send(String(m.d)); }
+    else if (m.t === 'close') closeWs();
   });
 
-  unsafeWindow.addEventListener('r52_ws_send', (e) => {
-    if (hubWs && hubWs.readyState === 1) hubWs.send(e.detail);
-  });
-
-  unsafeWindow.addEventListener('r52_ws_disconnect', () => {
-    if (hubWs) hubWs.close();
-  });
+  page.__tuner52Hub = 1;
+  toPage('pong');
   // ---------------------------------------
 
   window.addEventListener('r52_hub_download', (e) => {
@@ -391,13 +412,16 @@
         if (m.options && m.options.length > 0) {
             const select = document.createElement('select');
             select.style.cssText = 'background:var(--card2); color:var(--ink); border:1px solid var(--line); padding:6px; border-radius:4px; font-size:12px; margin:6px 0; width:100%; outline:none; cursor:pointer;';
+            
             const savedChoice = localStorage.getItem('r52_opt_' + m.id) || m.options[0];
+            
             m.options.forEach(opt => {
                 const o = document.createElement('option');
                 o.value = opt; o.textContent = opt;
                 if (opt === savedChoice) o.selected = true;
                 select.appendChild(o);
             });
+            
             select.onchange = async (e) => {
                 localStorage.setItem('r52_opt_' + m.id, e.target.value);
                 if (installed.includes(m.id) && active[m.id] !== false) {
@@ -441,6 +465,7 @@
 
     function renderActive(p) {
       p.innerHTML = '';
+      
       if (installed.length === 0) {
         p.innerHTML = '<div style="color:var(--mute); text-align:center; font-size:13px; padding:20px;">No mods installed.</div>';
         return;
