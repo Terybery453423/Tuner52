@@ -3,7 +3,6 @@
   if (window.__r52_globalMulti) return;
   window.__r52_globalMulti = true;
 
-  // Postman's echo server is highly reliable
   const WS_URL = 'wss://ws.postman-echo.com/raw';
   
   let ghostCar = null;
@@ -16,11 +15,10 @@
   ui.textContent = `🌐 MULTIPLAYER: CONNECTING...`;
   document.body.appendChild(ui);
 
-  // Tell the Hub to open the WebSocket
-  document.dispatchEvent(new CustomEvent('r52_ws_connect', { detail: { url: WS_URL } }));
+  // Dispatch the raw URL string instead of an object to avoid Firefox sandbox issues
+  window.dispatchEvent(new CustomEvent('r52_ws_connect', { detail: WS_URL }));
 
-  // Listen for Hub events
-  document.addEventListener('r52_ws_open', () => {
+  window.addEventListener('r52_ws_open', () => {
     console.log("[Mod] WebSocket Connected via Hub!");
     ui.textContent = `🌐 MULTIPLAYER: ONLINE`;
     ui.style.color = '#4ade80';
@@ -62,7 +60,7 @@
         ghostCar = wrap;
       }
 
-      document.dispatchEvent(new CustomEvent('r52_ws_send', { 
+      window.dispatchEvent(new CustomEvent('r52_ws_send', { 
         detail: JSON.stringify({
           x: carGroup.position.x,
           y: carGroup.position.y,
@@ -75,7 +73,7 @@
     }, 20);
   });
 
-  document.addEventListener('r52_ws_message', (event) => {
+  window.addEventListener('r52_ws_message', (event) => {
     if (ghostCar && isConnected) {
       try {
         const data = JSON.parse(event.detail);
@@ -87,7 +85,7 @@
     }
   });
 
-  document.addEventListener('r52_ws_close', () => {
+  window.addEventListener('r52_ws_close', () => {
     isConnected = false;
     ui.textContent = `🌐 MULTIPLAYER: DISCONNECTED`;
     ui.style.color = '#ef4444';
@@ -97,7 +95,7 @@
   window.__r52ModCleanup = window.__r52ModCleanup || {};
   window.__r52ModCleanup['global_multiplayer'] = function() {
     clearInterval(intervalId);
-    document.dispatchEvent(new CustomEvent('r52_ws_disconnect'));
+    window.dispatchEvent(new CustomEvent('r52_ws_disconnect'));
     if (ui.parentNode) ui.parentNode.removeChild(ui);
     if (ghostCar && ghostCar.parent) ghostCar.parent.remove(ghostCar);
     delete window.__r52_globalMulti;
