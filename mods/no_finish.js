@@ -1,11 +1,10 @@
-// No-Finish
+// == Endless Drive (Multiplayer No-Finish) ==
 (function(){
   if (window.__r52_endless) return;
   window.__r52_endless = true;
 
-  console.log("[Mod] Endless Drive active. Finish line disabled.");
+  console.log("[Mod] Endless Drive active. Hunting down finish triggers...");
 
-  // Create a small UI indicator
   const ui = document.createElement('div');
   ui.style.cssText = 'position:fixed; bottom:20px; left:20px; background:rgba(0,0,0,0.7); color:#4ade80; padding:8px 12px; border-radius:6px; font-family:monospace; font-size:12px; z-index:9999; pointer-events:none; border:1px solid #4ade80;';
   ui.textContent = '∞ ENDLESS DRIVE ACTIVE';
@@ -18,54 +17,57 @@
     return null;
   }
 
-  // 1. Hide the visual finish line object
-  const hideInterval = setInterval(() => {
+  const interval = setInterval(() => {
     const sc = getScene();
     if (!sc) return;
 
+    // 1. Destroy/Hide the finish line object so the game never detects it
     sc.traverse(obj => {
-      if (!obj.name) return;
-      const name = obj.name.toLowerCase();
+      if (!obj.name && !obj.userData) return;
+      const name = (obj.name || "").toLowerCase();
       
-      // Hide anything named finish, gate, end, or banner
-      if (name.includes('finish') || name.includes('gate') || name.includes('end') || name.includes('banner')) {
-        obj.visible = false;
+      // Look for typical finish line names or userData
+      if (name.includes('finish') || name.includes('gate') || name.includes('trigger') || name.includes('end')) {
+        if (obj.visible) {
+          obj.visible = false;
+          // Sometimes removing it completely stops the game from triggering it
+          if (obj.parent) obj.parent.remove(obj); 
+          console.log("[Mod] Destroyed finish trigger object.");
+        }
       }
     });
-  }, 1000);
 
-  // 2. Intercept the finish state
-  const stateInterval = setInterval(() => {
+    // 2. Failsafe: If the game uses a hardcoded Z/X coordinate, we stop the car just before it
+    // (Only if the state somehow still changes to 'finish')
     if (typeof state !== 'undefined' && state === 'finish') {
+      window.state = 'race'; // Force race state back
       
-      // Force game back to racing
-      window.state = 'race'; 
-      
-      // Push the car backward so they don't get stuck in the trigger zone
+      // Stop the car dead in its tracks
       if (typeof car !== 'undefined' && car) {
-        
-        // We don't know if the track goes along X or Z, so we push back based on heading.
-        // If they are moving forward, we reverse their position slightly.
-        if (car.vf > 0) {
-           car.x -= (Math.sin(car.h) * 5);
-           car.z -= (Math.cos(car.h) * 5);
-        }
-        
-        // Stop their speed so they don't instantly hit it again
         car.vf = 0; 
+        // Instantly teleport back to the start line if they cross
+        if (window.__r52TrackStart) {
+            car.x = window.__r52TrackStart.x;
+            car.z = window.__r52TrackStart.z;
+        }
       }
-      
-      console.log("[Mod] Finish blocked! Pushed player back.");
     }
-  }, 50);
+  }, 100);
 
-  // Cleanup
+  // Save the starting position so we can teleport them back if they somehow finish
+  setTimeout(() => {
+    if (typeof car !== 'undefined' && car) {
+      window.__r52TrackStart = { x: car.x, z: car.z, h: car.h };
+      console.log("[Mod] Saved track start position.");
+    }
+  }, 2000);
+
   window.__r52ModCleanup = window.__r52ModCleanup || {};
   window.__r52ModCleanup['endless_drive'] = function() {
-    clearInterval(hideInterval);
-    clearInterval(stateInterval);
+    clearInterval(interval);
     if (ui.parentNode) ui.parentNode.removeChild(ui);
     delete window.__r52_endless;
+    delete window.__r52TrackStart;
     console.log("[Mod] Endless Drive disabled.");
   };
 })();
