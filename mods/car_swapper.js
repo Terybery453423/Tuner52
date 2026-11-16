@@ -36,12 +36,29 @@
       rotX: 0, rotY: 0, rotZ: 0,
       k: 100, x: 0, y: 0, z: 0 // Adjust if needed
     },
-    "Golden Gate Bridge": {
-      url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/Golden_Gate_Bridge.glb',
-      rotX: 5 * Math.PI / 180, rotY: -Math.PI * 0.75, rotZ: 0,
-      k: null, x: 0, y: null, z: 0, // 'null' triggers the dynamic bridge logic below
-      bridgeScaleMul: 100.0,
-      bridgeYOffset: -12
+    // --- DELEGATION LOGIC FOR GOLDEN GATE BRIDGE ---
+if (selectedCar === 'Golden Gate Bridge') {
+  fetch('https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/bridge.js?t=' + Date.now())
+    .then(r => r.text())
+    .then(code => {
+      const script = document.createElement('script');
+      script.textContent = code;
+      document.head.appendChild(script);
+      script.remove();
+      console.log("[Mod] Bridge loaded via delegation.");
+    })
+    .catch(e => console.error("[Mod] Failed to load bridge.js:", e));
+
+  // When the user changes to a different car, ensure the bridge cleans itself up
+  window.__r52ModCleanup = window.__r52ModCleanup || {};
+  window.__r52ModCleanup['car_swapper'] = function() {
+    if (window.__r52ModCleanup && window.__r52ModCleanup['bridge']) {
+      window.__r52ModCleanup['bridge']();
+    }
+    delete window.__r52_carSwapper;
+    console.log("[Mod] Car Swapper (Bridge delegation) cleaned up.");
+  };
+  return;
     }
   };
 
