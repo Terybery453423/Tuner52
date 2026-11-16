@@ -3,8 +3,8 @@
   if (window.__r52_globalMulti) return;
   window.__r52_globalMulti = true;
 
-  // Using Postman's reliable echo server for testing
-  const WS_URL = 'wss://ws.postman-echo.com/raw';
+  // Swapped to a reliable public echo server
+  const WS_URL = 'wss://echo.websocket.events';
   
   let ghostCar = null;
   let lastSend = 0;
@@ -16,11 +16,11 @@
   ui.textContent = `🌐 MULTIPLAYER: CONNECTING...`;
   document.body.appendChild(ui);
 
-  // 1. Tell the Hub to open the WebSocket
-  window.dispatchEvent(new CustomEvent('r52_ws_connect', { detail: { url: WS_URL } }));
+  // Tell the Hub to open the WebSocket (using document)
+  document.dispatchEvent(new CustomEvent('r52_ws_connect', { detail: { url: WS_URL } }));
 
-  // 2. Listen for Hub events
-  window.addEventListener('r52_ws_open', () => {
+  // Listen for Hub events on document
+  document.addEventListener('r52_ws_open', () => {
     console.log("[Mod] WebSocket Connected via Hub!");
     ui.textContent = `🌐 MULTIPLAYER: ONLINE`;
     ui.style.color = '#4ade80';
@@ -62,8 +62,7 @@
         ghostCar = wrap;
       }
 
-      // Send via Hub relay
-      window.dispatchEvent(new CustomEvent('r52_ws_send', { 
+      document.dispatchEvent(new CustomEvent('r52_ws_send', { 
         detail: JSON.stringify({
           x: carGroup.position.x,
           y: carGroup.position.y,
@@ -76,7 +75,7 @@
     }, 20);
   });
 
-  window.addEventListener('r52_ws_message', (event) => {
+  document.addEventListener('r52_ws_message', (event) => {
     if (ghostCar && isConnected) {
       try {
         const data = JSON.parse(event.detail);
@@ -88,7 +87,7 @@
     }
   });
 
-  window.addEventListener('r52_ws_close', () => {
+  document.addEventListener('r52_ws_close', () => {
     isConnected = false;
     ui.textContent = `🌐 MULTIPLAYER: DISCONNECTED`;
     ui.style.color = '#ef4444';
@@ -98,7 +97,7 @@
   window.__r52ModCleanup = window.__r52ModCleanup || {};
   window.__r52ModCleanup['global_multiplayer'] = function() {
     clearInterval(intervalId);
-    window.dispatchEvent(new CustomEvent('r52_ws_disconnect'));
+    document.dispatchEvent(new CustomEvent('r52_ws_disconnect'));
     if (ui.parentNode) ui.parentNode.removeChild(ui);
     if (ghostCar && ghostCar.parent) ghostCar.parent.remove(ghostCar);
     delete window.__r52_globalMulti;
