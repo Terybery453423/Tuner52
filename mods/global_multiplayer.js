@@ -1,32 +1,68 @@
-// == Global Multiplayer (CSP Bypass via Hub Relay) ==
+// == Global Multiplayer (Claude's Bridge) ==
 (function(){
   if (window.__r52_globalMulti) return;
   window.__r52_globalMulti = true;
 
-  const WS_URL = 'wss://ws.postman-echo.com/raw';
+  // Using Postman echo just to test the bridge
+  const WS_URL = 'wss://ws.postman-echo.com/raw'; 
   
   let ghostCar = null;
   let lastSend = 0;
-  let intervalId = null;
-  let isConnected = false;
+  let sendInterval = null;
 
+  // --- UI STATUS ELEMENT ---
   const ui = document.createElement('div');
-  ui.style.cssText = 'position:fixed; bottom:20px; right:20px; background:rgba(0,0,0,0.7); color:#00ffcc; padding:8px 12px; border-radius:6px; font-family:monospace; font-size:12px; z-index:9999; pointer-events:none; border:1px solid #00ffcc;';
-  ui.textContent = `🌐 MULTIPLAYER: CONNECTING...`;
+  ui.style.cssText = 'position:fixed; bottom:20px; right:20px; background:rgba(0,0,0,0.8); color:#00ffcc; padding:8px 12px; border-radius:6px; font-family:monospace; font-size:12px; z-index:9999; pointer-events:none; border:1px solid #00ffcc;';
   document.body.appendChild(ui);
+  function setStatus(txt, color = '#00ffcc') {
+    ui.textContent = '🌐 ' + txt;
+    ui.style.color = color;
+    ui.style.borderColor = color;
+  }
+  setStatus('CONNECTING...');
 
-  // Dispatch the raw URL string instead of an object to avoid Firefox sandbox issues
-  window.dispatchEvent(new CustomEvent('r52_ws_connect', { detail: WS_URL }));
+  // --- CLAUDE'S NET BRIDGE ---
+  const Net = (() => {
+    const handlers = {};
+    const toHub = (t, d = '') =>
+      window.dispatchEvent(new CustomEvent('r52-to-hub', { detail: JSON.stringify({ t, d }) }));
+    window.addEventListener('r52-to-page', (e) => {
+      let m;
+      try { m = JSON.parse(e.detail); } catch (_) { return; }
+      (handlers[m.t] || []).forEach((fn) => fn(m.d));
+    });
+    return {
+      on: (t, fn) => (handlers[t] = handlers[t] || []).push(fn),
+      connect: (url) => toHub('connect', url),
+      send: (obj) => toHub('send', JSON.stringify(obj)),
+      close: () => toHub('close'),
+      ping: () => toHub('ping'),
+    };
+  })();
 
-  window.addEventListener('r52_ws_open', () => {
-    console.log("[Mod] WebSocket Connected via Hub!");
-    ui.textContent = `🌐 MULTIPLAYER: ONLINE`;
-    ui.style.color = '#4ade80';
-    ui.style.borderColor = '#4ade80';
-    isConnected = true;
+  let retry = 0;
+  function startNet() {
+    let tries = 0, ready = false;
+    const iv = setInterval(() => {
+      if (ready) return clearInterval(iv);
+      if (++tries > 25) { clearInterval(iv); setStatus('HUB NOT FOUND', '#ef4444'); return; }
+      Net.ping();
+    }, 400);
+    Net.on('pong', () => {
+      if (ready) return;
+      ready = true;
+      clearInterval(iv);
+      Net.connect(WS_URL);
+    });
+  }
 
-    intervalId = setInterval(() => {
-      if (!isConnected) return;
+  Net.on('open', () => {
+    retry = 0;
+    setStatus('ONLINE', '#4ade80');
+    
+    // Start sending our position
+    if (sendInterval) clearInterval(sendInterval);
+    sendInterval = setInterval(() => {
       const now = Date.now();
       if (now - lastSend < 50) return; 
       lastSend = now;
@@ -60,42 +96,42 @@
         ghostCar = wrap;
       }
 
-      window.dispatchEvent(new CustomEvent('r52_ws_send', { 
-        detail: JSON.stringify({
-          x: carGroup.position.x,
-          y: carGroup.position.y,
-          z: carGroup.position.z,
-          rx: carGroup.rotation.x,
-          ry: carGroup.rotation.y,
-          rz: carGroup.rotation.z
-        })
-      }));
-    }, 20);
+      Net.send({
+        x: carGroup.position.x,
+        y: carGroup.position.y,
+        z: carGroup.position.z,
+        rx: carGroup.rotation.x,
+        ry: carGroup.rotation.y,
+        rz: carGroup.rotation.z
+      });
+    }, 50);
   });
 
-  window.addEventListener('r52_ws_message', (event) => {
-    if (ghostCar && isConnected) {
+  Net.on('message', (data) => {
+    if (ghostCar) {
       try {
-        const data = JSON.parse(event.detail);
-        ghostCar.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
-        ghostCar.rotation.x += (data.rx - ghostCar.rotation.x) * 0.3;
-        ghostCar.rotation.y += (data.ry - ghostCar.rotation.y) * 0.3;
-        ghostCar.rotation.z += (data.rz - ghostCar.rotation.z) * 0.3;
+        const p = JSON.parse(data);
+        ghostCar.position.lerp(new THREE.Vector3(p.x, p.y, p.z), 0.3);
+        ghostCar.rotation.x += (p.rx - ghostCar.rotation.x) * 0.3;
+        ghostCar.rotation.y += (p.ry - ghostCar.rotation.y) * 0.3;
+        ghostCar.rotation.z += (p.rz - ghostCar.rotation.z) * 0.3;
       } catch(e) {}
     }
   });
 
-  window.addEventListener('r52_ws_close', () => {
-    isConnected = false;
-    ui.textContent = `🌐 MULTIPLAYER: DISCONNECTED`;
-    ui.style.color = '#ef4444';
-    ui.style.borderColor = '#ef4444';
+  Net.on('error', (why) => setStatus('ERROR: ' + why, '#ef4444'));
+  Net.on('close', () => {
+    setStatus('RECONNECTING...', '#fbbf24');
+    if (sendInterval) clearInterval(sendInterval);
+    setTimeout(() => Net.connect(WS_URL), Math.min(10000, 1000 * ++retry));
   });
+
+  startNet();
 
   window.__r52ModCleanup = window.__r52ModCleanup || {};
   window.__r52ModCleanup['global_multiplayer'] = function() {
-    clearInterval(intervalId);
-    window.dispatchEvent(new CustomEvent('r52_ws_disconnect'));
+    if (sendInterval) clearInterval(sendInterval);
+    Net.close();
     if (ui.parentNode) ui.parentNode.removeChild(ui);
     if (ghostCar && ghostCar.parent) ghostCar.parent.remove(ghostCar);
     delete window.__r52_globalMulti;
