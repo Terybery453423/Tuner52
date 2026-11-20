@@ -1,119 +1,155 @@
-// == Global Multiplayer (Firebase Offset Polling) ==
+// == Global Multiplayer (Live WebSockets) ==
 (function(){
   if (window.__r52_globalMulti) return;
   window.__r52_globalMulti = true;
 
-  // Your specific Firebase URL
-  const FIREBASE_URL = 'https://tuner5269420-default-rtdb.europe-west1.firebasedatabase.app/';
-  
+  // Generate a random room code for the lobby
   const roomCode = prompt("Enter Room Code (or leave blank for Global):", "global") || "global";
-  const playerId = Math.random().toString(36).substring(2, 9);
-  
-  const ROOM_URL = `${FIREBASE_URL}rooms/${roomCode}/${playerId}.json`;
-  const ALL_PLAYERS_URL = `${FIREBASE_URL}rooms/${roomCode}.json`;
+  // ScaleDrone channel ID (public sandbox)
+  const WS_URL = 'wss://sandbox.scaledrone.com/1x7g87yL2E2Y7A7l'; 
 
+  const myId = Math.random().toString(36).substring(2, 9);
+  
+  let ws = null;
   let ghostCar = null;
+  let lastSend = 0;
   let sendInterval = null;
-  let fetchInterval = null;
+  let retryCount = 0;
 
   const ui = document.createElement('div');
   ui.style.cssText = 'position:fixed; bottom:20px; right:20px; background:rgba(0,0,0,0.8); color:#00ffcc; padding:8px 12px; border-radius:6px; font-family:monospace; font-size:12px; z-index:9999; pointer-events:none; border:1px solid #00ffcc;';
-  ui.textContent = `🌐 ROOM: ${roomCode.toUpperCase()}`;
   document.body.appendChild(ui);
+  
+  function setStatus(txt, color = '#00ffcc') {
+    ui.textContent = `🌐 ${roomCode.toUpperCase()} | ${txt}`;
+    ui.style.color = color;
+    ui.style.borderColor = color;
+  }
+  setStatus('CONNECTING...');
 
-  function getCarGroup() {
+  function connect() {
+    if (ws) { try { ws.close(); } catch(e){} }
+    
+    setStatus('CONNECTING...', '#fbbf24');
+    
+    try {
+      ws = new WebSocket(WS_URL);
+    } catch(e) {
+      setStatus('CSP BLOCKED', '#ef4444');
+      return;
+    }
+
+    ws.onopen = () => {
+      console.log("[Multiplayer] Connected to WebSocket!");
+      
+      // Join the room
+      ws.send(JSON.stringify({
+        type: 'join',
+        room: roomCode,
+        id: myId
+      }));
+
+      setStatus('ONLINE', '#4ade80');
+      retryCount = 0;
+      
+      if (sendInterval) clearInterval(sendInterval);
+      sendInterval = setInterval(sendPos, 50); // 20 updates per second
+    };
+
+    ws.onmessage = (event) => {
+      if (!ghostCar) return;
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Ignore our own messages
+        if (data.id === myId) return;
+        // Only accept messages from our room
+        if (data.room !== roomCode) return;
+        
+        // Smooth interpolation (lerp) to hide network lag
+        ghostCar.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
+        ghostCar.rotation.x += (data.rx - ghostCar.rotation.x) * 0.3;
+        ghostCar.rotation.y += (data.ry - ghostCar.rotation.y) * 0.3;
+        ghostCar.rotation.z += (data.rz - ghostCar.rotation.z) * 0.3;
+        
+        // Show that we are receiving data
+        if (ui.style.color !== '#4ade80') setStatus('ONLINE', '#4ade80');
+      } catch(e) {}
+    };
+
+    ws.onclose = () => {
+      console.log("[Multiplayer] WebSocket Closed");
+      if (sendInterval) clearInterval(sendInterval);
+      setStatus('RECONNECTING...', '#fbbf24');
+      retryCount++;
+      setTimeout(connect, Math.min(5000, 1000 * retryCount));
+    };
+
+    ws.onerror = (e) => {
+      console.log("[Multiplayer] WebSocket Error", e);
+    };
+  }
+
+  function sendPos() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const now = Date.now();
+    if (now - lastSend < 50) return; 
+    lastSend = now;
+
     let sc = null;
     try { if (typeof cam !== "undefined" && cam) { let p = cam; while (p.parent) p = p.parent; if (p.type === "Scene") sc = p; } } catch(e){}
-    if (!sc) return null;
+    if (!sc) return;
+
+    let carGroup = null;
     for (let i = sc.children.length - 1; i >= 0; i--) {
       if (sc.children[i].type === "Group" && sc.children[i].userData && sc.children[i].userData.base) {
-        return { scene: sc, car: sc.children[i] };
+        carGroup = sc.children[i];
+        break;
       }
     }
-    return null;
-  }
+    if (!carGroup) return;
 
-  // --- 1. SEND LOOP (Every 250ms) ---
-  function sendPosition() {
-    const data = getCarGroup();
-    if (!data) return;
-    
-    const payload = JSON.stringify({
-      x: data.car.position.x, y: data.car.position.y, z: data.car.position.z,
-      rx: data.car.rotation.x, ry: data.car.rotation.y, rz: data.car.rotation.z,
-      t: Date.now()
-    });
-
-    fetch(ROOM_URL, { method: 'PUT', body: payload }).catch(() => {});
-  }
-
-  // --- 2. FETCH LOOP (Every 250ms, offset by 125ms) ---
-  function fetchPositions() {
-    const data = getCarGroup();
-    if (!data) return;
-    const { scene, car } = data;
-
-    fetch(ALL_PLAYERS_URL)
-      .then(r => {
-        if (!r.ok) throw new Error("Firebase rules blocked read");
-        return r.json();
-      })
-      .then(players => {
-        if (!players) return;
-        const now = Date.now();
-
-        for (const id in players) {
-          if (id === playerId) continue; // Skip ourselves
-          
-          const p = players[id];
-          // Ignore players who disconnected (no update in 3 seconds)
-          if (now - p.t > 3000) continue;
-
-          if (!ghostCar) {
-            ghostCar = car.userData.base.clone();
-            ghostCar.traverse((node) => {
-              if (node.isMesh && node.material) {
-                node.material = node.material.clone();
-                node.material.transparent = true;
-                node.material.opacity = 0.5;
-              }
-            });
-            const wrap = new THREE.Group();
-            wrap.name = "__r52_ghost";
-            wrap.add(ghostCar);
-            scene.add(wrap);
-            ghostCar = wrap;
-          }
-
-          // Smoothly move the ghost car to the new coordinates
-          ghostCar.position.lerp(new THREE.Vector3(p.x, p.y, p.z), 0.5);
-          ghostCar.rotation.x += (p.rx - ghostCar.rotation.x) * 0.5;
-          ghostCar.rotation.y += (p.ry - ghostCar.rotation.y) * 0.5;
-          ghostCar.rotation.z += (p.rz - ghostCar.rotation.z) * 0.5;
-          break; // Only render the first person we find
+    // Spawn the ghost car if it doesn't exist yet
+    if (!ghostCar) {
+      ghostCar = carGroup.userData.base.clone();
+      ghostCar.traverse((node) => {
+        if (node.isMesh && node.material) {
+          node.material = node.material.clone();
+          node.material.transparent = true;
+          node.material.opacity = 0.6; // Ghostly look
         }
-      }).catch((e) => {
-        console.warn("[Multiplayer] Fetch error:", e.message);
       });
+      const wrap = new THREE.Group();
+      wrap.name = "__r52_ghost_global";
+      wrap.add(ghostCar);
+      sc.add(wrap);
+      ghostCar = wrap;
+    }
+
+    // Send our position to the room
+    ws.send(JSON.stringify({
+      type: 'pos',
+      room: roomCode,
+      id: myId,
+      x: carGroup.position.x,
+      y: carGroup.position.y,
+      z: carGroup.position.z,
+      rx: carGroup.rotation.x,
+      ry: carGroup.rotation.y,
+      rz: carGroup.rotation.z
+    }));
   }
 
-  // --- START THE OFFSET LOOPS ---
-  sendInterval = setInterval(sendPosition, 250);
-  
-  // Wait 125ms before starting the fetch loop so they interlace
-  setTimeout(() => {
-    fetchInterval = setInterval(fetchPositions, 250);
-  }, 125);
+  // Start connection
+  connect();
 
   window.__r52ModCleanup = window.__r52ModCleanup || {};
   window.__r52ModCleanup['global_multiplayer'] = function() {
-    clearInterval(sendInterval);
-    clearInterval(fetchInterval);
+    if (sendInterval) clearInterval(sendInterval);
+    if (ws) ws.close();
     if (ui.parentNode) ui.parentNode.removeChild(ui);
     if (ghostCar && ghostCar.parent) ghostCar.parent.remove(ghostCar);
-    
-    // Delete ourselves from the database on disconnect
-    fetch(ROOM_URL, { method: 'DELETE' }).catch(() => {});
     delete window.__r52_globalMulti;
+    console.log("[Mod] Global Multiplayer disconnected.");
   };
 })();
