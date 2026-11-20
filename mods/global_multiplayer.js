@@ -5,8 +5,8 @@
 
   // Generate a random room code for the lobby
   const roomCode = prompt("Enter Room Code (or leave blank for Global):", "global") || "global";
-  // ScaleDrone channel ID (public sandbox)
-  const WS_URL = 'wss://sandbox.scaledrone.com/1x7g87yL2E2Y7A7l'; 
+  // Yjs public relay - stable and designed for real-time sync
+  const WS_URL = 'wss://demos.yjs.dev/ws'; 
 
   const myId = Math.random().toString(36).substring(2, 9);
   
@@ -15,6 +15,7 @@
   let lastSend = 0;
   let sendInterval = null;
   let retryCount = 0;
+  let timeoutId = null;
 
   const ui = document.createElement('div');
   ui.style.cssText = 'position:fixed; bottom:20px; right:20px; background:rgba(0,0,0,0.8); color:#00ffcc; padding:8px 12px; border-radius:6px; font-family:monospace; font-size:12px; z-index:9999; pointer-events:none; border:1px solid #00ffcc;';
@@ -29,6 +30,7 @@
 
   function connect() {
     if (ws) { try { ws.close(); } catch(e){} }
+    if (timeoutId) clearTimeout(timeoutId);
     
     setStatus('CONNECTING...', '#fbbf24');
     
@@ -39,10 +41,19 @@
       return;
     }
 
+    // Timeout if connection takes too long
+    timeoutId = setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        setStatus('TIMEOUT', '#ef4444');
+        ws.close();
+      }
+    }, 8000);
+
     ws.onopen = () => {
-      console.log("[Multiplayer] Connected to WebSocket!");
+      clearTimeout(timeoutId);
+      console.log("[Multiplayer] Connected to Yjs relay!");
       
-      // Join the room
+      // Join the room by sending a sync message
       ws.send(JSON.stringify({
         type: 'join',
         room: roomCode,
@@ -72,21 +83,23 @@
         ghostCar.rotation.y += (data.ry - ghostCar.rotation.y) * 0.3;
         ghostCar.rotation.z += (data.rz - ghostCar.rotation.z) * 0.3;
         
-        // Show that we are receiving data
         if (ui.style.color !== '#4ade80') setStatus('ONLINE', '#4ade80');
       } catch(e) {}
     };
 
     ws.onclose = () => {
+      clearTimeout(timeoutId);
       console.log("[Multiplayer] WebSocket Closed");
       if (sendInterval) clearInterval(sendInterval);
       setStatus('RECONNECTING...', '#fbbf24');
       retryCount++;
+      // Retry with exponential backoff, max 5 seconds
       setTimeout(connect, Math.min(5000, 1000 * retryCount));
     };
 
     ws.onerror = (e) => {
       console.log("[Multiplayer] WebSocket Error", e);
+      setStatus('ERROR', '#ef4444');
     };
   }
 
@@ -146,6 +159,7 @@
   window.__r52ModCleanup = window.__r52ModCleanup || {};
   window.__r52ModCleanup['global_multiplayer'] = function() {
     if (sendInterval) clearInterval(sendInterval);
+    if (timeoutId) clearTimeout(timeoutId);
     if (ws) ws.close();
     if (ui.parentNode) ui.parentNode.removeChild(ui);
     if (ghostCar && ghostCar.parent) ghostCar.parent.remove(ghostCar);
