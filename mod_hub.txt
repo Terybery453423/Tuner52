@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Tuner52 (RALLY52) - peak
+// @name         Tuner52 (RALLY52) - peak (3.0.9)
 // @namespace    https://github.com/Terybery453423
-// @version      3.0.8
+// @version      3.0.9
 // @description  Tuner52 - Stealth mod menu for RALLY52.
 // @match        https://rally52.com/*
 // @grant        GM_xmlhttpRequest
@@ -17,7 +17,7 @@
   'use strict';
   if (window.__r52hub) return; window.__r52hub = 1;
 
-  const HUB_VERSION = '3.0.8';
+  const HUB_VERSION = '3.0.9';
 
   const REPO = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/';
   const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
@@ -329,27 +329,6 @@
     if (built) updateNativeUI();
   }
 
-  // Built-in: widen the game's Field of view slider to 0-180
-  function paintFov(inp) {
-    inp.style.setProperty('--p', (Number(inp.value) / 180 * 100) + '%');
-  }
-
-  function extendFov() {
-    const inp = document.querySelector('#oList input[type="range"][aria-label="Field of view"]');
-    if (!inp) return;
-    if (inp.min !== '0' || inp.max !== '180') {
-      const v = inp.value;
-      inp.min = '0'; inp.max = '180';
-      inp.value = v;
-    }
-    paintFov(inp);
-    if (!inp.dataset.r52fov) {
-      inp.dataset.r52fov = '1';
-      // repaint the fill after the game's own handler has run
-      inp.addEventListener('input', () => requestAnimationFrame(() => paintFov(inp)));
-    }
-  }
-
   setInterval(() => {
     const optTitle = document.getElementById('oTitle');
     const optTabs = document.getElementById('oTabs');
@@ -358,7 +337,6 @@
 
     if (optTitle && optTabs && optBox) {
       if (fb) fb.style.display = 'none';
-      extendFov();
 
       if (!optTitle.dataset.hooked) {
         optTitle.dataset.hooked = '1';
@@ -655,6 +633,7 @@
       for(let i=localStorage.length-1;i>=0;i--){ let k=localStorage.key(i); if(k && k.startsWith('r52_')) localStorage.removeItem(k); }
       location.reload();
     });
+
   }
 
   function modRow(m) {
