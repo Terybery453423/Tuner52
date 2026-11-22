@@ -1,725 +1,183 @@
-// ==UserScript==
-// @name         Tuner52 (RALLY52) - best so far v3.0.8
-// @namespace    https://github.com/Terybery453423
-// @version      3.0.8
-// @description  Tuner52 - Stealth mod menu for RALLY52.
-// @match        https://rally52.com/*
-// @grant        GM_xmlhttpRequest
-// @grant        unsafeWindow
-// @connect      raw.githubusercontent.com
-// @connect      cdn.jsdelivr.net
-// @connect      *
-// @run-at       document-idle
-// @license      GPL-3.0
-// ==/UserScript==
-
+// == Universal Car Swapper ==
 (function(){
-  'use strict';
-  if (window.__r52hub) return; window.__r52hub = 1;
+  if (window.__r52_carSwapper) return;
+  window.__r52_carSwapper = true;
 
-  const HUB_VERSION = '3.0.8';
+  // Read the selected car from the Hub Options
+  const selectedCar = localStorage.getItem('r52_opt_car_swapper') || 'None';
+  if (selectedCar === 'None') return;
 
-  const REPO = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/';
-  const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
-  const ALLOWED = [REPO, ROOT_URL];
+  console.log("[Mod] Car Swapper loading: " + selectedCar);
 
-  let SECRET = localStorage.getItem('r52_secret') === 'true';
-  let UNLOCKED = localStorage.getItem('r52_unlocked') === 'true';
-  let installed = JSON.parse(localStorage.getItem('r52_installed') || '[]');
-  let active = JSON.parse(localStorage.getItem('r52_active') || '{}');
-  let mods = [];
-  let tab = null;
-  let storeCache = null;
-  let modQuery = '';
+// --- DELEGATION LOGIC FOR GOLDEN GATE BRIDGE ---
+if (selectedCar === 'Golden Gate Bridge') {
+  fetch('https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/bridge.js?t=' + Date.now())
+    .then(r => r.text())
+    .then(code => {
+      const script = document.createElement('script');
+      script.textContent = code;
+      document.head.appendChild(script);
+      script.remove();
+      console.log("[Mod] Bridge loaded via delegation.");
+    })
+    .catch(e => console.error("[Mod] Failed to load bridge.js:", e));
 
-  let updateAvailable = false;
-  let latestVersion = HUB_VERSION;
-  let latestScriptCode = '';
-
-  const xhr = unsafeWindow.GM_xmlhttpRequest || GM_xmlhttpRequest;
-  function fetchText(url) {
-    return new Promise((res, rej) => {
-      if (!ALLOWED.some(p => url.startsWith(p))) return rej('URL blocked');
-      xhr({ method: 'GET', url: url + '?t=' + Date.now(), timeout: 10000,
-        onload: r => r.status >= 200 && r.status < 300 ? res(r.responseText) : rej('HTTP ' + r.status),
-        onerror: () => rej('Net error')
-      });
-    });
-  }
-
-  async function checkVersion() {
-    try {
-      const code = await fetchText(ROOT_URL);
-      latestScriptCode = code;
-      const match = code.match(/@version\s+([0-9.]+)/);
-      if (match && match[1]) {
-        latestVersion = match[1];
-        if (latestVersion !== HUB_VERSION) {
-          updateAvailable = true;
-          const mUI = document.getElementById('r52_mods_ui') || document.getElementById('r52_modal_content');
-          if (mUI) { mUI.dataset.loaded = '0'; renderMods(mUI); }
-        }
-      }
-    } catch(e) {}
-  }
-
-  function inject(code) {
-    return new Promise((resolve) => {
-      const evt = 'r52_inject_' + Math.random().toString(36);
-      const s = document.createElement('script');
-      s.textContent = code + `\n;document.dispatchEvent(new CustomEvent('${evt}'));`;
-      document.addEventListener(evt, () => resolve(), { once: true });
-      (document.head || document.documentElement).appendChild(s);
-      s.remove();
-    });
-  }
-
-  inject(`
-    window.__r52DownloadFile = function(url, name, onSuccess, onError) {
-      const id = Math.random().toString(36);
-      window._r52_dl_resolvers = window._r52_dl_resolvers || {};
-      window._r52_dl_resolvers[id] = { onSuccess, onError };
-      window.dispatchEvent(new CustomEvent('r52_hub_download', { detail: { url, name, id } }));
-    };
-    window.__r52ModUIToggles = window.__r52ModUIToggles || {};
-    window.__r52ApplyUIToggle = function(id, visible) {
-      if (window.__r52ModUIToggles[id]) window.__r52ModUIToggles[id](visible);
-    };
-  `);
-
-  const page = unsafeWindow;
-  const toPage = (t, d = '') => {
-    const init = { detail: JSON.stringify({ t, d }) };
-    page.dispatchEvent(new page.CustomEvent('r52-to-page', typeof cloneInto === 'function' ? cloneInto(init, page) : init));
+  // When the user changes to a different car, ensure the bridge cleans itself up
+  window.__r52ModCleanup = window.__r52ModCleanup || {};
+  window.__r52ModCleanup['car_swapper'] = function() {
+    if (window.__r52ModCleanup && window.__r52ModCleanup['bridge']) {
+      window.__r52ModCleanup['bridge']();
+    }
+    delete window.__r52_carSwapper;
+    console.log("[Mod] Car Swapper (Bridge delegation) cleaned up.");
   };
-  let hubWs = null;
-  page.addEventListener('r52-to-hub', (e) => {
-    let m;
-    try { m = JSON.parse(String(e.detail)); } catch (_) { return; }
-    if (m.t === 'ping') toPage('pong');
-    else if (m.t === 'connect') {
-      if (hubWs) hubWs.close();
-      hubWs = new WebSocket(String(m.d));
-      hubWs.onopen = () => toPage('open');
-      hubWs.onmessage = (msg) => toPage('message', msg.data);
-      hubWs.onclose = () => toPage('close');
-      hubWs.onerror = () => toPage('error', 'ws error');
+  return; // Stop execution here, let bridge.js do the rest
     }
-    else if (m.t === 'send') { if (hubWs && hubWs.readyState === 1) hubWs.send(String(m.d)); }
-    else if (m.t === 'close') { if (hubWs) hubWs.close(); }
-  });
-  page.__tuner52Hub = 1;
-  toPage('pong');
-
-  window.addEventListener('r52_hub_download', (e) => {
-    const { url, name, id } = e.detail;
-    xhr({ method: 'GET', url: url, responseType: 'blob', timeout: 30000,
-      onload: r => {
-        if (r.status >= 200 && r.status < 300) {
-          const objectUrl = URL.createObjectURL(r.response);
-          if (unsafeWindow._r52_dl_resolvers[id]) { unsafeWindow._r52_dl_resolvers[id].onSuccess(objectUrl); delete unsafeWindow._r52_dl_resolvers[id]; }
-        } else {
-          if (unsafeWindow._r52_dl_resolvers[id]) { unsafeWindow._r52_dl_resolvers[id].onError('HTTP ' + r.status); delete unsafeWindow._r52_dl_resolvers[id]; }
-        }
-      },
-      onerror: () => { if (unsafeWindow._r52_dl_resolvers[id]) { unsafeWindow._r52_dl_resolvers[id].onError('Net error'); delete unsafeWindow._r52_dl_resolvers[id]; } }
-    });
-  });
-
-  async function loadMod(m) {
-    if (active[m.id] === false) return;
-    try {
-      const code = await fetchText(m.url);
-      await inject(code);
-      const isHidden = localStorage.getItem('r52_ui_' + m.id) === 'true';
-      if (isHidden) await inject(`if(window.__r52ApplyUIToggle) window.__r52ApplyUIToggle('${m.id}', false);`);
-    } catch(e) { alert('❌ Failed to load: ' + m.name + '\nError: ' + e.message); }
-  }
-
-  checkVersion();
-
-  (async () => {
-    installed = [...new Set(installed)];
-    if (!installed.length) return;
-    try {
-      const store = JSON.parse(await fetchText(REPO + 'store.json'));
-      mods = mods.concat(store);
-      store.forEach(m => { if (installed.includes(m.id) && active[m.id] !== false) loadMod(m); });
-      if (SECRET) {
-        const sec = JSON.parse(await fetchText(REPO + '45yllar.json'));
-        mods = mods.concat(sec);
-        sec.forEach(m => { if (installed.includes(m.id) && active[m.id] !== false) loadMod(m); });
-      }
-    } catch(e) {}
-  })();
-
-  // --- UI INJECTION LOGIC ---
-  let taps = 0, tapT;
-  let secretTaps = 0, secretT;
-
-  const ICON_MODS = '<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></svg>';
-  const ICON_FIXES = '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"></path></svg>';
-  const FONT_UI = 'var(--ui, system-ui, sans-serif)';
-  const FONT_HEAD = 'var(--head, "Arial Narrow", Arial, sans-serif)';
-
-  function save() {
-    localStorage.setItem('r52_installed', JSON.stringify(installed));
-    localStorage.setItem('r52_active', JSON.stringify(active));
-  }
-
-  function cleanupMod(id) {
-    inject(`if(window.__r52ModCleanup&&window.__r52ModCleanup['${id}'])window.__r52ModCleanup['${id}']();`);
-  }
-
-  function refreshMods() {
-    document.querySelectorAll('#r52_mods_ui, #r52_modal_content').forEach(c => { c.dataset.loaded = '0'; renderMods(c); });
-  }
-
-  // Buttons use the game's own .btn / .btn2 classes
-  function mkBtn(label, secondary) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'btn sm' + (secondary ? ' btn2' : '');
-    b.textContent = label;
-    b.style.cssText = 'min-height:36px; padding:0 16px; font-size:13px; min-width:88px;';
-    return b;
-  }
-
-  // Rows use the game's own settings row classes (.sRow / .sTxt / .sCtl)
-  function row(title, desc, ctl) {
-    const r = document.createElement('div');
-    r.className = 'sRow ty-tog';
-    r.setAttribute('role', 'listitem');
-    const t = document.createElement('div'); t.className = 'sTxt';
-    const b = document.createElement('b'); b.textContent = title; t.appendChild(b);
-    if (desc) {
-      const d = document.createElement('span');
-      d.textContent = desc;
-      d.style.cssText = `font:500 13px/1.35 ${FONT_UI}; color:var(--mute,#aab0ba);`;
-      t.appendChild(d);
+  const CARS = {
+    "Red Bull RB16": {
+      url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/rb16.glb',
+      rotX: 0, rotY: 0, rotZ: 0,
+      k: 16.65, x: 40359.93, y: -2456.30, z: 21229.67
+    },
+    "Krabby Patty": {
+      url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/krabby_patty.glb',
+      rotX: 0, rotY: -1.5708, rotZ: 0,
+      k: 96.92, x: 21.48, y: 42.59, z: -1.22
+    },
+    "Trackmania Car": {
+      url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/tmnf_car.glb',
+      rotX: -0.1916, rotY: 0.59, rotZ: 0.1084,
+      k: 94.70, x: -19.53, y: 43.00, z: 365.90
+    },
+    "Lamborghini Huracan": {
+      url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/huracan_itasha.glb',
+      rotX: 0, rotY: 0, rotZ: 0,
+      k: 100, x: 0, y: 0, z: 0 // Adjust if needed
+    },
+    "Aston Safety Car": {
+      url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/aston_safety.glb',
+      rotX: 0, rotY: 0, rotZ: 0,
+      k: 100, x: 0, y: 0, z: 0 // Adjust if needed
     }
-    const k = document.createElement('div'); k.className = 'sCtl'; k.appendChild(ctl);
-    r.appendChild(t); r.appendChild(k);
-    return r;
+  };
+
+  const config = CARS[selectedCar];
+  if (!config) return;
+
+  function getScene(){
+    if (window.__r52sceneCached && window.__r52sceneCached.type === "Scene") return window.__r52sceneCached;
+    try { if (typeof cam !== "undefined" && cam) { var p = cam; while (p.parent) p = p.parent; if (p.type === "Scene") { window.__r52sceneCached = p; return p; } } } catch(e){}
+    try { if (typeof sky !== "undefined" && sky) { var p2 = sky; while (p2.parent) p2 = p2.parent; if (p2.type === "Scene") { window.__r52sceneCached = p2; return p2; } } } catch(e){}
+    return null;
   }
 
-  function section(label) {
-    const s = document.createElement('div');
-    s.className = 'sSec';
-    s.textContent = label;
-    return s;
-  }
-
-  function note(text) {
-    const d = document.createElement('div');
-    d.textContent = text;
-    d.style.cssText = `padding:16px; text-align:center; color:var(--mute,#aab0ba); font-family:${FONT_UI};`;
-    return d;
-  }
-
-  function initFloatingUI() {
-    if (document.getElementById('r52_floating_btn')) return;
-    const btn = document.createElement('button');
-    btn.id = 'r52_floating_btn';
-    btn.className = 'btn';
-    btn.textContent = 'Tuner52';
-    btn.style.cssText = 'position:fixed; bottom:calc(16px + var(--safeB, 0px)); left:calc(16px + var(--safeL, 0px)); z-index:2147483647; min-height:40px; padding:0 16px; font-size:13px;';
-    document.body.appendChild(btn);
-
-    const modal = document.createElement('div');
-    modal.id = 'r52_modal';
-    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:2147483647; display:none; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;';
-    const inner = document.createElement('div');
-    inner.style.cssText = `background:var(--s1,#14171c); width:min(100%,520px); height:min(100%,640px); border:1px solid var(--edge,#2a2f39); border-radius:var(--r,6px); display:flex; flex-direction:column; overflow:hidden; color:var(--ink,#f4f4f1); font-family:${FONT_UI}; box-shadow:0 18px 48px rgba(0,0,0,.55);`;
-
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex; align-items:center; gap:14px; padding:14px 16px 12px; border-bottom:1px solid var(--edge,#2a2f39); position:relative;';
-    const title = document.createElement('h2');
-    title.textContent = 'Tuner52';
-    title.style.cssText = `margin:0; font:italic 800 28px/1 ${FONT_HEAD}; letter-spacing:.01em; text-transform:uppercase;`;
-    const accent = document.createElement('div');
-    accent.style.cssText = 'position:absolute; left:16px; bottom:-1px; width:56px; height:3px; background:var(--red,#e0282f);';
-    const closeBtn = mkBtn('Close', true);
-    closeBtn.style.marginLeft = 'auto';
-    closeBtn.onclick = () => modal.style.display = 'none';
-    header.appendChild(title); header.appendChild(accent); header.appendChild(closeBtn);
-
-    const content = document.createElement('div');
-    content.id = 'r52_modal_content';
-    content.style.cssText = 'flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:4px 12px 18px;';
-    inner.appendChild(header); inner.appendChild(content); modal.appendChild(inner); document.body.appendChild(modal);
-    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
-    btn.onclick = () => { modal.style.display = 'flex'; renderMods(content); };
-  }
-
-  function updateNativeUI() {
-    const mUI = document.getElementById('r52_mods_ui');
-    const fUI = document.getElementById('r52_fixes_ui');
-    const mBtn = document.getElementById('r52_mods_btn');
-    const fBtn = document.getElementById('r52_fixes_btn');
-    const oList = document.getElementById('oList');
-    const crumb = document.getElementById('oCrumb');
-    if (!mUI || !fUI || !mBtn || !fBtn || !oList) return;
-
-    const setOn = (b, on) => { b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); };
-
-    if (tab === 'mods' || tab === 'fixes') {
-      oList.style.display = 'none';
-      mUI.style.display = tab === 'mods' ? 'block' : 'none';
-      fUI.style.display = tab === 'fixes' ? 'block' : 'none';
-      setOn(mBtn, tab === 'mods'); setOn(fBtn, tab === 'fixes');
-      // un-highlight the game's own tabs while one of ours is open
-      document.querySelectorAll('#oTabs button').forEach(b => { if (b !== mBtn && b !== fBtn) setOn(b, false); });
-      if (crumb) crumb.textContent = tab === 'mods' ? 'Tuner52' : 'Fixes';
-      if (tab === 'mods') renderMods(mUI); else renderFixes(fUI);
-      const main = document.getElementById('oMain');
-      if (main) main.scrollTop = 0;
-    } else {
-      oList.style.display = '';
-      mUI.style.display = 'none'; fUI.style.display = 'none';
-      setOn(mBtn, false); setOn(fBtn, false);
+  function findCarGroup(sc){
+    if (!sc || !sc.children) return null;
+    for (var k = sc.children.length - 1; k >= 0; k--) {
+      var c = sc.children[k];
+      if (c.type === "Group" && c.userData && c.userData.base) return c;
     }
+    return null;
   }
 
-  function makeTab(id, label, icon) {
-    const b = document.createElement('button');
-    b.id = id;
-    b.type = 'button';
-    b.setAttribute('role', 'tab');
-    b.setAttribute('aria-selected', 'false');
-    b.innerHTML = icon + '<span>' + label + '</span>';
-    return b;
-  }
-
-  function ensureNativeTabs(optTabs) {
-    let built = false;
-    if (!document.getElementById('r52_mods_btn')) {
-      const b1 = makeTab('r52_mods_btn', 'Tuner52', ICON_MODS);
-      const b2 = makeTab('r52_fixes_btn', 'Fixes', ICON_FIXES);
-      b1.onclick = () => {
-        tab = 'mods';
-        secretTaps++; clearTimeout(secretT); secretT = setTimeout(() => secretTaps = 0, 1500);
-        let unlockedNow = false;
-        if (secretTaps >= 5 && !SECRET) {
-          secretTaps = 0;
-          SECRET = true;
-          localStorage.setItem('r52_secret', 'true');
-          storeCache = null;
-          unlockedNow = true;
-        }
-        updateNativeUI();
-        if (unlockedNow) refreshMods();
-      };
-      b2.onclick = () => { tab = 'fixes'; updateNativeUI(); };
-      optTabs.appendChild(b1); optTabs.appendChild(b2);
-      built = true;
-    }
-    if (!document.getElementById('r52_mods_ui')) {
-      const oList = document.getElementById('oList');
-      const parent = oList && oList.parentNode;
-      if (parent) {
-        // Plain block containers inside the game's own scrolling #oMain.
-        // The game's container styles are left alone so scrolling keeps working on every tab.
-        const c1 = document.createElement('div'); c1.id = 'r52_mods_ui'; c1.setAttribute('role', 'list'); c1.style.display = 'none';
-        const c2 = document.createElement('div'); c2.id = 'r52_fixes_ui'; c2.setAttribute('role', 'list'); c2.style.display = 'none';
-        parent.appendChild(c1); parent.appendChild(c2);
-        built = true;
-      }
-    }
-    if (built) updateNativeUI();
-  }
-
-  // Built-in: widen the game's Field of view slider to 0-180
-  function paintFov(inp) {
-    inp.style.setProperty('--p', (Number(inp.value) / 180 * 100) + '%');
-  }
-
-  function extendFov() {
-    const inp = document.querySelector('#oList input[type="range"][aria-label="Field of view"]');
-    if (!inp) return;
-    if (inp.min !== '0' || inp.max !== '180') {
-      const v = inp.value;
-      inp.min = '0'; inp.max = '180';
-      inp.value = v;
-    }
-    paintFov(inp);
-    if (!inp.dataset.r52fov) {
-      inp.dataset.r52fov = '1';
-      // repaint the fill after the game's own handler has run
-      inp.addEventListener('input', () => requestAnimationFrame(() => paintFov(inp)));
-    }
-  }
-
-  setInterval(() => {
-    const optTitle = document.getElementById('oTitle');
-    const optTabs = document.getElementById('oTabs');
-    const optBox = document.querySelector('.optbox');
-    const fb = document.getElementById('r52_floating_btn');
-
-    if (optTitle && optTabs && optBox) {
-      if (fb) fb.style.display = 'none';
-      extendFov();
-
-      if (!optTitle.dataset.hooked) {
-        optTitle.dataset.hooked = '1';
-        optTitle.onclick = () => {
-          taps++; clearTimeout(tapT); tapT = setTimeout(() => taps = 0, 1500);
-          if (taps >= 5) {
-            taps = 0;
-            UNLOCKED = true;
-            localStorage.setItem('r52_unlocked', 'true');
-            tab = 'mods';
-            ensureNativeTabs(optTabs);
-            updateNativeUI();
-          }
-        };
-      }
-
-      if (!optTabs.dataset.hooked) {
-        optTabs.dataset.hooked = '1';
-        optTabs.addEventListener('click', e => {
-          const b = e.target.closest('button');
-          if (b && b.id !== 'r52_mods_btn' && b.id !== 'r52_fixes_btn') {
-            tab = null;
-            updateNativeUI();
-          }
+  function downloadModel() {
+    if (window.__r52DownloadFile) {
+      window.__r52DownloadFile(config.url, selectedCar, function(dataUrl) {
+        if (!window.THREE || !THREE.GLTFLoader) { return; }
+        var loader = new THREE.GLTFLoader();
+        loader.load(dataUrl, function(gltf){
+          window.__r52csStash = gltf.scene;
+          console.log("[Mod] Model parsed: " + selectedCar);
+        }, undefined, function(err){
+          console.error("[Mod] Failed to parse GLB:", err);
         });
-      }
-
-      if (UNLOCKED) ensureNativeTabs(optTabs);
-    } else {
-      if (fb) fb.style.display = '';
-      initFloatingUI();
-    }
-  }, 250);
-
-  // Install / remove with a two-step confirm on remove
-  async function handleInstallClick(m, b, done) {
-    if (installed.includes(m.id)) {
-      if (b.dataset.c === '1') {
-        clearTimeout(b._t);
-        installed = installed.filter(x => x !== m.id);
-        delete active[m.id];
-        localStorage.removeItem('r52_ui_' + m.id);
-        save();
-        cleanupMod(m.id);
-        done();
-      } else {
-        b.dataset.c = '1'; b.textContent = 'Sure?'; b.classList.remove('btn2');
-        b._t = setTimeout(() => { b.dataset.c = '0'; b.textContent = 'Remove'; b.classList.add('btn2'); }, 3000);
-      }
-    } else {
-      b.disabled = true; b.textContent = 'Wait...';
-      if (!installed.includes(m.id)) installed.push(m.id);
-      active[m.id] = true;
-      await loadMod(m);
-      save();
-      done();
-    }
-  }
-
-  // --- PER-MOD SETTINGS (sliders, color + hex, copy/paste preset) ---
-  // A mod's store.json entry can carry: "settings":[{key,label,type:"range"|"color",min,max,step,unit,default}]
-  // Values are saved in localStorage as r52_cfg_<modId> (JSON) and pushed live to the page
-  // via a window 'r52_cfg' CustomEvent: detail = { id, cfg }.
-  function normHex(v) {
-    if (typeof v !== 'string') return null;
-    let t = v.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{3}$/i.test(t)) t = t.split('').map(ch => ch + ch).join('');
-    return /^[0-9a-f]{6}$/i.test(t) ? '#' + t.toLowerCase() : null;
-  }
-
-  function sanitizeSetting(s, v) {
-    if (s.type === 'range') {
-      const min = Number(s.min != null ? s.min : 0), max = Number(s.max != null ? s.max : 100), step = Number(s.step || 1);
-      let n = (v === undefined || v === null || v === '') ? Number(s.default != null ? s.default : min) : Number(v);
-      if (!isFinite(n)) n = Number(s.default != null ? s.default : min);
-      n = Math.round(n / step) * step;
-      n = Math.min(max, Math.max(min, n));
-      return Number(n.toFixed(3));
-    }
-    if (s.type === 'color') return normHex(v) || normHex(s.default) || '#ffffff';
-    return v === undefined ? s.default : v;
-  }
-
-  function getCfg(m) {
-    let saved = {};
-    try { saved = JSON.parse(localStorage.getItem('r52_cfg_' + m.id) || '{}') || {}; } catch(e) {}
-    const cfg = {};
-    (m.settings || []).forEach(s => { cfg[s.key] = sanitizeSetting(s, saved[s.key]); });
-    return cfg;
-  }
-
-  let cfgT = null;
-  function pushCfg(m, cfg) {
-    localStorage.setItem('r52_cfg_' + m.id, JSON.stringify(cfg));
-    clearTimeout(cfgT);
-    cfgT = setTimeout(() => {
-      inject(`window.dispatchEvent(new CustomEvent('r52_cfg',{detail:{id:${JSON.stringify(m.id)},cfg:${JSON.stringify(cfg)}}}));`);
-    }, 50);
-  }
-
-  function parsePreset(m, txt) {
-    const prefix = 'T52:' + m.id + ':';
-    txt = (txt || '').trim();
-    if (txt.indexOf(prefix) !== 0) return null;
-    let obj;
-    try { obj = JSON.parse(txt.slice(prefix.length)); } catch(e) { return null; }
-    if (!obj || typeof obj !== 'object') return null;
-    const out = {};
-    m.settings.forEach(s => { out[s.key] = sanitizeSetting(s, obj[s.key]); });
-    return out;
-  }
-
-  function isolateKeys(el) {
-    ['keydown', 'keyup', 'keypress'].forEach(ev => el.addEventListener(ev, e => e.stopPropagation()));
-  }
-
-  function textInputStyle() {
-    return `background:var(--s0,#0d0f13); color:var(--ink,#f4f4f1); border:1px solid var(--edge,#2a2f39); border-radius:var(--r-sm,4px); padding:0 12px; min-height:40px; font:600 16px ${FONT_UI}; box-sizing:border-box; outline:none;`;
-  }
-
-  function buildSettings(m, box) {
-    if (!m.settings || !m.settings.length) return;
-    const cfg = getCfg(m);
-    const paints = {};
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'display:flex; flex-direction:column; gap:14px;';
-
-    m.settings.forEach(s => {
-      const rowEl = document.createElement('div');
-      rowEl.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
-      const lab = document.createElement('div');
-      lab.textContent = s.label || s.key;
-      lab.style.cssText = `font:800 12px ${FONT_HEAD}; letter-spacing:.14em; text-transform:uppercase; color:var(--mute,#aab0ba);`;
-      rowEl.appendChild(lab);
-
-      if (s.type === 'range') {
-        const min = Number(s.min != null ? s.min : 0), max = Number(s.max != null ? s.max : 100);
-        const sl = document.createElement('div'); sl.className = 'sSl'; sl.style.width = '100%';
-        const inp = document.createElement('input');
-        inp.type = 'range'; inp.min = min; inp.max = max; inp.step = s.step || 1;
-        inp.setAttribute('aria-label', s.label || s.key);
-        const out = document.createElement('o');
-        const paint = v => {
-          inp.value = v;
-          out.textContent = v + (s.unit || '');
-          inp.style.setProperty('--p', (max > min ? (v - min) / (max - min) * 100 : 0) + '%');
-        };
-        inp.oninput = () => { cfg[s.key] = sanitizeSetting(s, inp.value); paint(cfg[s.key]); pushCfg(m, cfg); };
-        sl.appendChild(inp); sl.appendChild(out);
-        rowEl.appendChild(sl);
-        paints[s.key] = paint; paint(cfg[s.key]);
-      } else if (s.type === 'color') {
-        const line = document.createElement('div');
-        line.style.cssText = 'display:flex; gap:8px; align-items:center;';
-        const sw = document.createElement('input');
-        sw.type = 'color';
-        sw.style.cssText = 'width:48px; height:40px; padding:2px; flex:0 0 auto; cursor:pointer; background:var(--s0,#0d0f13); border:1px solid var(--edge,#2a2f39); border-radius:var(--r-sm,4px);';
-        const tx = document.createElement('input');
-        tx.type = 'text'; tx.spellcheck = false; tx.autocomplete = 'off'; tx.maxLength = 9; tx.placeholder = '#RRGGBB';
-        tx.setAttribute('aria-label', (s.label || s.key) + ' hex');
-        tx.style.cssText = textInputStyle() + 'flex:1; min-width:0; text-transform:lowercase;';
-        isolateKeys(tx);
-        const paint = v => { sw.value = v; tx.value = v; tx.style.borderColor = ''; };
-        sw.oninput = () => { cfg[s.key] = normHex(sw.value) || cfg[s.key]; paint(cfg[s.key]); pushCfg(m, cfg); };
-        tx.oninput = () => {
-          const h = normHex(tx.value);
-          if (h) { cfg[s.key] = h; sw.value = h; tx.style.borderColor = ''; pushCfg(m, cfg); }
-          else tx.style.borderColor = 'var(--red,#e0282f)';
-        };
-        tx.onblur = () => paint(cfg[s.key]);
-        line.appendChild(sw); line.appendChild(tx);
-        rowEl.appendChild(line);
-        paints[s.key] = paint; paint(cfg[s.key]);
-      }
-      wrap.appendChild(rowEl);
-    });
-
-    const acts = document.createElement('div');
-    acts.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap;';
-    const flash = (b, txt, orig) => { b.textContent = txt; setTimeout(() => { b.textContent = orig; }, 1500); };
-    const copyB = mkBtn('Copy preset', true); copyB.style.flex = '1';
-    const pasteB = mkBtn('Paste preset', true); pasteB.style.flex = '1';
-    const resetB = mkBtn('Reset', true); resetB.style.flex = '1';
-
-    const applyAll = () => { m.settings.forEach(s => paints[s.key] && paints[s.key](cfg[s.key])); pushCfg(m, cfg); };
-
-    copyB.onclick = async () => {
-      const code = 'T52:' + m.id + ':' + JSON.stringify(cfg);
-      try { await navigator.clipboard.writeText(code); flash(copyB, 'Copied', 'Copy preset'); }
-      catch(e) { window.prompt('Copy this preset code:', code); }
-    };
-    pasteB.onclick = async () => {
-      let txt = '';
-      try { txt = await navigator.clipboard.readText(); } catch(e) {}
-      if (!parsePreset(m, txt)) txt = window.prompt('Paste preset code:') || '';
-      const parsed = parsePreset(m, txt);
-      if (!parsed) { flash(pasteB, 'Invalid code', 'Paste preset'); return; }
-      Object.assign(cfg, parsed); applyAll(); flash(pasteB, 'Applied', 'Paste preset');
-    };
-    resetB.onclick = () => {
-      m.settings.forEach(s => { cfg[s.key] = sanitizeSetting(s, undefined); });
-      applyAll(); flash(resetB, 'Done', 'Reset');
-    };
-    acts.appendChild(copyB); acts.appendChild(pasteB); acts.appendChild(resetB);
-    wrap.appendChild(acts);
-    box.appendChild(wrap);
-  }
-
-  // --- MOD DETAIL MODAL ---
-  function openModDetail(m) {
-    let modal = document.getElementById('r52_detail_modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'r52_detail_modal';
-      modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:2147483647; display:none; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;';
-      modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
-      document.body.appendChild(modal);
-    }
-    modal.innerHTML = '';
-
-    const box = document.createElement('div');
-    box.style.cssText = `background:var(--s1,#14171c); border:1px solid var(--edge,#2a2f39); border-radius:var(--r,6px); width:min(100%,380px); max-height:100%; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:14px; color:var(--ink,#f4f4f1); font-family:${FONT_UI}; box-shadow:0 18px 48px rgba(0,0,0,.55); box-sizing:border-box;`;
-
-    const h = document.createElement('h2');
-    h.textContent = m.name;
-    h.style.cssText = `margin:0; font:italic 800 26px/1 ${FONT_HEAD}; letter-spacing:.01em; text-transform:uppercase; color:${m.isSecret ? 'var(--red,#e0282f)' : 'inherit'};`;
-    const p = document.createElement('p');
-    p.textContent = m.desc || '';
-    p.style.cssText = 'margin:0; font-size:14px; line-height:1.45; color:var(--mute,#aab0ba);';
-    box.appendChild(h); box.appendChild(p);
-
-    if (m.options && m.options.length) {
-      const seg = document.createElement('div');
-      seg.className = 'sSeg';
-      seg.setAttribute('role', 'radiogroup');
-      seg.style.flexWrap = 'wrap';
-      const current = localStorage.getItem('r52_opt_' + m.id) || m.options[0];
-      m.options.forEach(opt => {
-        const ob = document.createElement('button');
-        ob.type = 'button';
-        ob.textContent = opt;
-        ob.setAttribute('role', 'radio');
-        ob.classList.toggle('on', opt === current);
-        ob.setAttribute('aria-checked', opt === current ? 'true' : 'false');
-        ob.onclick = async () => {
-          localStorage.setItem('r52_opt_' + m.id, opt);
-          seg.querySelectorAll('button').forEach(x => { const s = x === ob; x.classList.toggle('on', s); x.setAttribute('aria-checked', s ? 'true' : 'false'); });
-          if (installed.includes(m.id) && active[m.id] !== false) { cleanupMod(m.id); await loadMod(m); }
-        };
-        seg.appendChild(ob);
+      }, function(err) {
+        console.error("[Mod] Failed to download model:", err);
       });
-      box.appendChild(seg);
+    }
+  }
+
+  var intervalId = setInterval(function(){
+    var sc = getScene(); if (!sc) return;
+    var cg = findCarGroup(sc); if (!cg) return;
+    
+    var scaled = null;
+    for (var j = 0; j < cg.children.length; j++) {
+      var ch = cg.children[j];
+      if (ch.type === "Group" && ch.scale && Math.abs(ch.scale.x - 0.01) < 0.001) { scaled = ch; break; }
+    }
+    if (!scaled) scaled = cg.children[0];
+    if (!scaled) return;
+
+    if (!window.__r52csStash) return;
+
+    var existing = null;
+    for (var i = 0; i < cg.children.length; i++) {
+      if (cg.children[i].name === "__r52csWrap") { existing = cg.children[i]; break; }
     }
 
-    buildSettings(m, box);
-
-    const actions = document.createElement('div');
-    actions.style.cssText = 'display:flex; gap:8px; margin-top:4px;';
-    const closeB = mkBtn('Close', true); closeB.style.flex = '1';
-    const isInst = installed.includes(m.id);
-    const mainB = mkBtn(isInst ? 'Remove' : 'Install', isInst); mainB.style.flex = '1';
-    closeB.onclick = () => { modal.style.display = 'none'; };
-    mainB.onclick = () => handleInstallClick(m, mainB, () => { modal.style.display = 'none'; refreshMods(); });
-    actions.appendChild(closeB); actions.appendChild(mainB);
-    box.appendChild(actions);
-
-    modal.appendChild(box);
-    modal.style.display = 'flex';
-  }
-
-  function renderFixes(c) {
-    c.innerHTML = '';
-    const add = (title, desc, label, secondary, act) => {
-      const b = mkBtn(label, secondary);
-      b.onclick = act;
-      c.appendChild(row(title, desc, b));
-    };
-
-    c.appendChild(section('Game'));
-    add('Reset car model', 'Restores the default car.', 'Reset', true, () => {
-      inject(`if(window.__r52ModCleanup){ if(window.__r52ModCleanup['glb_gltf_loader'])window.__r52ModCleanup['glb_gltf_loader'](); if(window.__r52ModCleanup['bridge'])window.__r52ModCleanup['bridge'](); } if(window.__r52unswap)window.__r52unswap(); alert('Car reset');`);
-    });
-    add('Clear game data', 'Wipes saves and ghosts.', 'Clear', false, () => {
-      if(!confirm('Wipe local saves?')) return;
-      let cl=0, pats=[/^rd_202/,/^rd_ghost$/,/^rd_skids$/,/^rd_paint2_/,/^rd_art2_/,/^rd_wheels$/,/^rd_recent_cols$/,/^rd_rqdrop$/,/^rallydaily_/];
-      for(let i=localStorage.length-1;i>=0;i--){ let k=localStorage.key(i); for(let p of pats){ if(p.test(k)){ localStorage.removeItem(k); cl++; break; } } }
-      alert('Cleared '+cl+' keys.');
-    });
-
-    c.appendChild(section('Tuner52'));
-    add('Factory reset', 'Removes all mods and settings, then reloads.', 'Reset', false, async () => {
-      if(!confirm('Factory reset Tuner52? This removes all installed mods and settings, then reloads the page.')) return;
-      await inject(`if(window.__r52ModCleanup){ Object.keys(window.__r52ModCleanup).forEach(function(k){ try{ window.__r52ModCleanup[k](); }catch(e){} }); } if(window.__r52unswap)window.__r52unswap();`);
-      for(let i=localStorage.length-1;i>=0;i--){ let k=localStorage.key(i); if(k && k.startsWith('r52_')) localStorage.removeItem(k); }
-      location.reload();
-    });
-  }
-
-  function modRow(m) {
-    const isInst = installed.includes(m.id);
-    const b = mkBtn(isInst ? 'Remove' : 'Install', isInst);
-    b.onclick = (e) => { e.stopPropagation(); handleInstallClick(m, b, refreshMods); };
-    const r = row(m.name, m.desc, b);
-    r.style.cursor = 'pointer';
-    if (m.isSecret) r.querySelector('b').style.color = 'var(--red,#e0282f)';
-    r.onclick = () => openModDetail(m);
-    return r;
-  }
-
-  async function renderMods(c) {
-    if (c.dataset.loaded === '1') return;
-    if (!storeCache) {
-      c.innerHTML = '';
-      c.appendChild(note('Loading...'));
-      let all = [];
-      try { all = JSON.parse(await fetchText(REPO + 'store.json')); }
-      catch(e) { c.innerHTML = ''; c.appendChild(note('Failed to load store')); return; }
-      if (SECRET) { try { const s = JSON.parse(await fetchText(REPO + '45yllar.json')); s.forEach(m => m.isSecret = true); all = all.concat(s); } catch(e) {} }
-      storeCache = all.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
-    }
-    mods = storeCache;
-    c.innerHTML = ''; c.dataset.loaded = '1';
-
-    if (updateAvailable) {
-      const banner = document.createElement('div');
-      banner.textContent = 'Update available (v' + latestVersion + ') - tap to copy script';
-      banner.style.cssText = `margin:10px 0 0; padding:12px 14px; border-radius:var(--r-sm,4px); background:var(--red,#e0282f); color:#fff; font:700 13px ${FONT_HEAD}; letter-spacing:.08em; text-transform:uppercase; text-align:center; cursor:pointer;`;
-      banner.onclick = async () => {
-        try { await navigator.clipboard.writeText(latestScriptCode); banner.textContent = 'Copied'; }
-        catch(e) { banner.textContent = 'Copy failed'; }
-      };
-      c.appendChild(banner);
+    if (existing) {
+      existing.position.copy(scaled.position);
+      existing.rotation.copy(scaled.rotation);
+      existing.rotation.x += config.rotX;
+      existing.rotation.y += config.rotY;
+      existing.rotation.z += config.rotZ;
+      scaled.visible = false;
+      return;
     }
 
-    // Search (matches name + description). Stays put while the list below re-draws.
-    const bar = document.createElement('div');
-    bar.style.cssText = 'position:sticky; top:0; z-index:1; background:var(--s1,#14171c); padding:10px 0 6px;';
-    const search = document.createElement('input');
-    search.type = 'text'; search.value = modQuery; search.placeholder = 'Search mods';
-    search.spellcheck = false; search.autocomplete = 'off'; search.setAttribute('enterkeyhint', 'search');
-    search.setAttribute('aria-label', 'Search mods');
-    search.style.cssText = textInputStyle() + 'width:100%;';
-    isolateKeys(search);
-    bar.appendChild(search);
-    c.appendChild(bar);
+    try {
+      var wrap = new THREE.Group();
+      wrap.name = "__r52csWrap";
+      wrap.position.copy(scaled.position);
+      wrap.rotation.copy(scaled.rotation);
+      wrap.rotation.x += config.rotX;
+      wrap.rotation.y += config.rotY;
+      wrap.rotation.z += config.rotZ;
+      wrap.scale.setScalar(0.01);
 
-    const list = document.createElement('div');
-    list.setAttribute('role', 'list');
-    c.appendChild(list);
+      var model = window.__r52csStash;
+      if (model.parent) model.parent.remove(model);
+      
+      model.scale.set(config.k, config.k, config.k);
+      model.position.set(config.x, config.y, config.z);
 
-    const draw = () => {
-      list.innerHTML = '';
-      const terms = modQuery.toLowerCase().split(/\s+/).filter(Boolean);
-      const match = m => { const hay = ((m.name || '') + ' ' + (m.desc || '')).toLowerCase(); return terms.every(t => hay.includes(t)); };
-      const normal = mods.filter(m => !m.isSecret && match(m));
-      const secret = mods.filter(m => m.isSecret && match(m));
-      if (!normal.length && !secret.length) { list.appendChild(note(terms.length ? 'No mods match "' + modQuery.trim() + '"' : 'No mods yet')); return; }
-      if (normal.length) { list.appendChild(section('Mods')); normal.forEach(m => list.appendChild(modRow(m))); }
-      if (secret.length) { list.appendChild(section('Secret')); secret.forEach(m => list.appendChild(modRow(m))); }
-    };
-    search.addEventListener('input', () => { modQuery = search.value; draw(); });
-    draw();
-  }
+      wrap.add(model);
+      cg.add(wrap);
+      
+      scaled.visible = false;
+      window.__r52csGroup = wrap;
+      window.__r52csModel = model;
+      
+      console.log("[Mod] Swapped in: " + selectedCar);
+    } catch(e) { 
+      console.error("[Mod] Swap error:", e); 
+    }
+  }, 300);
+
+  setTimeout(downloadModel, 1000);
+
+  window.__r52ModCleanup = window.__r52ModCleanup || {};
+  window.__r52ModCleanup['car_swapper'] = function() {
+    clearInterval(intervalId);
+    if (window.__r52csGroup && window.__r52csGroup.parent) {
+      window.__r52csGroup.parent.remove(window.__r52csGroup);
+    }
+    var sc = getScene();
+    if (sc) {
+      var cg = findCarGroup(sc);
+      if (cg) {
+        for (var j = 0; j < cg.children.length; j++) {
+          if (cg.children[j].scale && Math.abs(cg.children[j].scale.x - 0.01) < 0.001) {
+            cg.children[j].visible = true;
+          }
+        }
+      }
+    }
+    delete window.__r52_carSwapper;
+    delete window.__r52csGroup;
+    delete window.__r52csModel;
+    delete window.__r52csStash;
+    console.log("[Mod] Car Swapper cleaned up.");
+  };
 })();
