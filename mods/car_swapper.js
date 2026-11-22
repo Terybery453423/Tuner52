@@ -32,6 +32,7 @@ if (selectedCar === 'Golden Gate Bridge') {
     console.log("[Mod] Car Swapper (Bridge delegation) cleaned up.");
   };
   return; // Stop execution here, let bridge.js do the rest
+    }
   const CARS = {
     "Red Bull RB16": {
       url: 'https://cdn.jsdelivr.net/gh/Terybery453423/Tuner52@main/custom_cars/rb16.glb',
