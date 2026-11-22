@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Tuner52 (RALLY52) - everything fixed
+// @name         Tuner52 (RALLY52) - peak
 // @namespace    https://github.com/Terybery453423
 // @version      3.0.8
 // @description  Tuner52 - Stealth mod menu for RALLY52.
@@ -30,6 +30,7 @@
   let mods = [];
   let tab = null;
   let storeCache = null;
+  let modQuery = '';
 
   let updateAvailable = false;
   let latestVersion = HUB_VERSION;
@@ -328,6 +329,27 @@
     if (built) updateNativeUI();
   }
 
+  // Built-in: widen the game's Field of view slider to 0-180
+  function paintFov(inp) {
+    inp.style.setProperty('--p', (Number(inp.value) / 180 * 100) + '%');
+  }
+
+  function extendFov() {
+    const inp = document.querySelector('#oList input[type="range"][aria-label="Field of view"]');
+    if (!inp) return;
+    if (inp.min !== '0' || inp.max !== '180') {
+      const v = inp.value;
+      inp.min = '0'; inp.max = '180';
+      inp.value = v;
+    }
+    paintFov(inp);
+    if (!inp.dataset.r52fov) {
+      inp.dataset.r52fov = '1';
+      // repaint the fill after the game's own handler has run
+      inp.addEventListener('input', () => requestAnimationFrame(() => paintFov(inp)));
+    }
+  }
+
   setInterval(() => {
     const optTitle = document.getElementById('oTitle');
     const optTabs = document.getElementById('oTabs');
@@ -336,6 +358,7 @@
 
     if (optTitle && optTabs && optBox) {
       if (fb) fb.style.display = 'none';
+      extendFov();
 
       if (!optTitle.dataset.hooked) {
         optTitle.dataset.hooked = '1';
@@ -395,6 +418,155 @@
     }
   }
 
+  // --- PER-MOD SETTINGS (sliders, color + hex, copy/paste preset) ---
+  // A mod's store.json entry can carry: "settings":[{key,label,type:"range"|"color",min,max,step,unit,default}]
+  // Values are saved in localStorage as r52_cfg_<modId> (JSON) and pushed live to the page
+  // via a window 'r52_cfg' CustomEvent: detail = { id, cfg }.
+  function normHex(v) {
+    if (typeof v !== 'string') return null;
+    let t = v.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{3}$/i.test(t)) t = t.split('').map(ch => ch + ch).join('');
+    return /^[0-9a-f]{6}$/i.test(t) ? '#' + t.toLowerCase() : null;
+  }
+
+  function sanitizeSetting(s, v) {
+    if (s.type === 'range') {
+      const min = Number(s.min != null ? s.min : 0), max = Number(s.max != null ? s.max : 100), step = Number(s.step || 1);
+      let n = (v === undefined || v === null || v === '') ? Number(s.default != null ? s.default : min) : Number(v);
+      if (!isFinite(n)) n = Number(s.default != null ? s.default : min);
+      n = Math.round(n / step) * step;
+      n = Math.min(max, Math.max(min, n));
+      return Number(n.toFixed(3));
+    }
+    if (s.type === 'color') return normHex(v) || normHex(s.default) || '#ffffff';
+    return v === undefined ? s.default : v;
+  }
+
+  function getCfg(m) {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('r52_cfg_' + m.id) || '{}') || {}; } catch(e) {}
+    const cfg = {};
+    (m.settings || []).forEach(s => { cfg[s.key] = sanitizeSetting(s, saved[s.key]); });
+    return cfg;
+  }
+
+  let cfgT = null;
+  function pushCfg(m, cfg) {
+    localStorage.setItem('r52_cfg_' + m.id, JSON.stringify(cfg));
+    clearTimeout(cfgT);
+    cfgT = setTimeout(() => {
+      inject(`window.dispatchEvent(new CustomEvent('r52_cfg',{detail:{id:${JSON.stringify(m.id)},cfg:${JSON.stringify(cfg)}}}));`);
+    }, 50);
+  }
+
+  function parsePreset(m, txt) {
+    const prefix = 'T52:' + m.id + ':';
+    txt = (txt || '').trim();
+    if (txt.indexOf(prefix) !== 0) return null;
+    let obj;
+    try { obj = JSON.parse(txt.slice(prefix.length)); } catch(e) { return null; }
+    if (!obj || typeof obj !== 'object') return null;
+    const out = {};
+    m.settings.forEach(s => { out[s.key] = sanitizeSetting(s, obj[s.key]); });
+    return out;
+  }
+
+  function isolateKeys(el) {
+    ['keydown', 'keyup', 'keypress'].forEach(ev => el.addEventListener(ev, e => e.stopPropagation()));
+  }
+
+  function textInputStyle() {
+    return `background:var(--s0,#0d0f13); color:var(--ink,#f4f4f1); border:1px solid var(--edge,#2a2f39); border-radius:var(--r-sm,4px); padding:0 12px; min-height:40px; font:600 16px ${FONT_UI}; box-sizing:border-box; outline:none;`;
+  }
+
+  function buildSettings(m, box) {
+    if (!m.settings || !m.settings.length) return;
+    const cfg = getCfg(m);
+    const paints = {};
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex; flex-direction:column; gap:14px;';
+
+    m.settings.forEach(s => {
+      const rowEl = document.createElement('div');
+      rowEl.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+      const lab = document.createElement('div');
+      lab.textContent = s.label || s.key;
+      lab.style.cssText = `font:800 12px ${FONT_HEAD}; letter-spacing:.14em; text-transform:uppercase; color:var(--mute,#aab0ba);`;
+      rowEl.appendChild(lab);
+
+      if (s.type === 'range') {
+        const min = Number(s.min != null ? s.min : 0), max = Number(s.max != null ? s.max : 100);
+        const sl = document.createElement('div'); sl.className = 'sSl'; sl.style.width = '100%';
+        const inp = document.createElement('input');
+        inp.type = 'range'; inp.min = min; inp.max = max; inp.step = s.step || 1;
+        inp.setAttribute('aria-label', s.label || s.key);
+        const out = document.createElement('o');
+        const paint = v => {
+          inp.value = v;
+          out.textContent = v + (s.unit || '');
+          inp.style.setProperty('--p', (max > min ? (v - min) / (max - min) * 100 : 0) + '%');
+        };
+        inp.oninput = () => { cfg[s.key] = sanitizeSetting(s, inp.value); paint(cfg[s.key]); pushCfg(m, cfg); };
+        sl.appendChild(inp); sl.appendChild(out);
+        rowEl.appendChild(sl);
+        paints[s.key] = paint; paint(cfg[s.key]);
+      } else if (s.type === 'color') {
+        const line = document.createElement('div');
+        line.style.cssText = 'display:flex; gap:8px; align-items:center;';
+        const sw = document.createElement('input');
+        sw.type = 'color';
+        sw.style.cssText = 'width:48px; height:40px; padding:2px; flex:0 0 auto; cursor:pointer; background:var(--s0,#0d0f13); border:1px solid var(--edge,#2a2f39); border-radius:var(--r-sm,4px);';
+        const tx = document.createElement('input');
+        tx.type = 'text'; tx.spellcheck = false; tx.autocomplete = 'off'; tx.maxLength = 9; tx.placeholder = '#RRGGBB';
+        tx.setAttribute('aria-label', (s.label || s.key) + ' hex');
+        tx.style.cssText = textInputStyle() + 'flex:1; min-width:0; text-transform:lowercase;';
+        isolateKeys(tx);
+        const paint = v => { sw.value = v; tx.value = v; tx.style.borderColor = ''; };
+        sw.oninput = () => { cfg[s.key] = normHex(sw.value) || cfg[s.key]; paint(cfg[s.key]); pushCfg(m, cfg); };
+        tx.oninput = () => {
+          const h = normHex(tx.value);
+          if (h) { cfg[s.key] = h; sw.value = h; tx.style.borderColor = ''; pushCfg(m, cfg); }
+          else tx.style.borderColor = 'var(--red,#e0282f)';
+        };
+        tx.onblur = () => paint(cfg[s.key]);
+        line.appendChild(sw); line.appendChild(tx);
+        rowEl.appendChild(line);
+        paints[s.key] = paint; paint(cfg[s.key]);
+      }
+      wrap.appendChild(rowEl);
+    });
+
+    const acts = document.createElement('div');
+    acts.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap;';
+    const flash = (b, txt, orig) => { b.textContent = txt; setTimeout(() => { b.textContent = orig; }, 1500); };
+    const copyB = mkBtn('Copy preset', true); copyB.style.flex = '1';
+    const pasteB = mkBtn('Paste preset', true); pasteB.style.flex = '1';
+    const resetB = mkBtn('Reset', true); resetB.style.flex = '1';
+
+    const applyAll = () => { m.settings.forEach(s => paints[s.key] && paints[s.key](cfg[s.key])); pushCfg(m, cfg); };
+
+    copyB.onclick = async () => {
+      const code = 'T52:' + m.id + ':' + JSON.stringify(cfg);
+      try { await navigator.clipboard.writeText(code); flash(copyB, 'Copied', 'Copy preset'); }
+      catch(e) { window.prompt('Copy this preset code:', code); }
+    };
+    pasteB.onclick = async () => {
+      let txt = '';
+      try { txt = await navigator.clipboard.readText(); } catch(e) {}
+      if (!parsePreset(m, txt)) txt = window.prompt('Paste preset code:') || '';
+      const parsed = parsePreset(m, txt);
+      if (!parsed) { flash(pasteB, 'Invalid code', 'Paste preset'); return; }
+      Object.assign(cfg, parsed); applyAll(); flash(pasteB, 'Applied', 'Paste preset');
+    };
+    resetB.onclick = () => {
+      m.settings.forEach(s => { cfg[s.key] = sanitizeSetting(s, undefined); });
+      applyAll(); flash(resetB, 'Done', 'Reset');
+    };
+    acts.appendChild(copyB); acts.appendChild(pasteB); acts.appendChild(resetB);
+    wrap.appendChild(acts);
+    box.appendChild(wrap);
+  }
+
   // --- MOD DETAIL MODAL ---
   function openModDetail(m) {
     let modal = document.getElementById('r52_detail_modal');
@@ -440,6 +612,8 @@
       });
       box.appendChild(seg);
     }
+
+    buildSettings(m, box);
 
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex; gap:8px; margin-top:4px;';
@@ -519,9 +693,33 @@
       c.appendChild(banner);
     }
 
-    const normal = mods.filter(m => !m.isSecret);
-    const secret = mods.filter(m => m.isSecret);
-    if (normal.length) { c.appendChild(section('Mods')); normal.forEach(m => c.appendChild(modRow(m))); }
-    if (secret.length) { c.appendChild(section('Secret')); secret.forEach(m => c.appendChild(modRow(m))); }
+    // Search (matches name + description). Stays put while the list below re-draws.
+    const bar = document.createElement('div');
+    bar.style.cssText = 'position:sticky; top:0; z-index:1; background:var(--s1,#14171c); padding:10px 0 6px;';
+    const search = document.createElement('input');
+    search.type = 'text'; search.value = modQuery; search.placeholder = 'Search mods';
+    search.spellcheck = false; search.autocomplete = 'off'; search.setAttribute('enterkeyhint', 'search');
+    search.setAttribute('aria-label', 'Search mods');
+    search.style.cssText = textInputStyle() + 'width:100%;';
+    isolateKeys(search);
+    bar.appendChild(search);
+    c.appendChild(bar);
+
+    const list = document.createElement('div');
+    list.setAttribute('role', 'list');
+    c.appendChild(list);
+
+    const draw = () => {
+      list.innerHTML = '';
+      const terms = modQuery.toLowerCase().split(/\s+/).filter(Boolean);
+      const match = m => { const hay = ((m.name || '') + ' ' + (m.desc || '')).toLowerCase(); return terms.every(t => hay.includes(t)); };
+      const normal = mods.filter(m => !m.isSecret && match(m));
+      const secret = mods.filter(m => m.isSecret && match(m));
+      if (!normal.length && !secret.length) { list.appendChild(note(terms.length ? 'No mods match "' + modQuery.trim() + '"' : 'No mods yet')); return; }
+      if (normal.length) { list.appendChild(section('Mods')); normal.forEach(m => list.appendChild(modRow(m))); }
+      if (secret.length) { list.appendChild(section('Secret')); secret.forEach(m => list.appendChild(modRow(m))); }
+    };
+    search.addEventListener('input', () => { modQuery = search.value; draw(); });
+    draw();
   }
 })();
