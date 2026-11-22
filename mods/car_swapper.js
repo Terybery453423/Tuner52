@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Tuner52 (RALLY52) - Hybrid UI v3.0.8
+// @name         Tuner52 (RALLY52) - best so far v3.0.8
 // @namespace    https://github.com/Terybery453423
 // @version      3.0.8
 // @description  Tuner52 - Stealth mod menu for RALLY52.
@@ -17,7 +17,7 @@
   'use strict';
   if (window.__r52hub) return; window.__r52hub = 1;
 
-  const HUB_VERSION = '3.0.6';
+  const HUB_VERSION = '3.0.8';
 
   const REPO = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/';
   const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
