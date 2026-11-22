@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Tuner52 (RALLY52) - Hybrid UI v3.0.6
+// @name         Tuner52 (RALLY52) - everything fixed
 // @namespace    https://github.com/Terybery453423
-// @version      3.0.6
+// @version      3.0.7
 // @description  Tuner52 - Stealth mod menu for RALLY52.
 // @match        https://rally52.com/*
 // @grant        GM_xmlhttpRequest
@@ -17,7 +17,7 @@
   'use strict';
   if (window.__r52hub) return; window.__r52hub = 1;
 
-  const HUB_VERSION = '3.0.6';
+  const HUB_VERSION = '3.0.7';
 
   const REPO = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/';
   const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
@@ -28,7 +28,8 @@
   let installed = JSON.parse(localStorage.getItem('r52_installed') || '[]');
   let active = JSON.parse(localStorage.getItem('r52_active') || '{}');
   let mods = [];
-  let tab = 'mods';
+  let tab = null;
+  let storeCache = null;
 
   let updateAvailable = false;
   let latestVersion = HUB_VERSION;
@@ -153,123 +154,187 @@
 
   // --- UI INJECTION LOGIC ---
   let taps = 0, tapT;
+  let secretTaps = 0, secretT;
 
-  function hijackSocials() {
-    const tSocial = document.querySelector('.tSocial');
-    if (!tSocial) return;
-    const MY_TIKTOK = 'https://www.tiktok.com/@YOUR_TIKTOK';
-    const MY_DISCORD = 'https://discord.gg/YOUR_INVITE';
-    const ig = tSocial.querySelector('a[href*="instagram.com"]');
-    const fb = tSocial.querySelector('a[href*="facebook.com"]');
-    if (ig) ig.remove();
-    if (fb) fb.remove();
-    const tt = tSocial.querySelector('a[href*="tiktok.com"]');
-    if (tt) { tt.href = MY_TIKTOK; tt.title = "TikTok"; }
-    const dc = tSocial.querySelector('a[href*="discord.gg"]') || tSocial.querySelector('a[href*="discord.com"]');
-    if (dc) { dc.href = MY_DISCORD; dc.title = "Discord"; }
+  const ICON_MODS = '<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></svg>';
+  const ICON_FIXES = '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"></path></svg>';
+  const FONT_UI = 'var(--ui, system-ui, sans-serif)';
+  const FONT_HEAD = 'var(--head, "Arial Narrow", Arial, sans-serif)';
+
+  function save() {
+    localStorage.setItem('r52_installed', JSON.stringify(installed));
+    localStorage.setItem('r52_active', JSON.stringify(active));
+  }
+
+  function cleanupMod(id) {
+    inject(`if(window.__r52ModCleanup&&window.__r52ModCleanup['${id}'])window.__r52ModCleanup['${id}']();`);
+  }
+
+  function refreshMods() {
+    document.querySelectorAll('#r52_mods_ui, #r52_modal_content').forEach(c => { c.dataset.loaded = '0'; renderMods(c); });
+  }
+
+  // Buttons use the game's own .btn / .btn2 classes
+  function mkBtn(label, secondary) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn sm' + (secondary ? ' btn2' : '');
+    b.textContent = label;
+    b.style.cssText = 'min-height:36px; padding:0 16px; font-size:13px; min-width:88px;';
+    return b;
+  }
+
+  // Rows use the game's own settings row classes (.sRow / .sTxt / .sCtl)
+  function row(title, desc, ctl) {
+    const r = document.createElement('div');
+    r.className = 'sRow ty-tog';
+    r.setAttribute('role', 'listitem');
+    const t = document.createElement('div'); t.className = 'sTxt';
+    const b = document.createElement('b'); b.textContent = title; t.appendChild(b);
+    if (desc) {
+      const d = document.createElement('span');
+      d.textContent = desc;
+      d.style.cssText = `font:500 13px/1.35 ${FONT_UI}; color:var(--mute,#aab0ba);`;
+      t.appendChild(d);
+    }
+    const k = document.createElement('div'); k.className = 'sCtl'; k.appendChild(ctl);
+    r.appendChild(t); r.appendChild(k);
+    return r;
+  }
+
+  function section(label) {
+    const s = document.createElement('div');
+    s.className = 'sSec';
+    s.textContent = label;
+    return s;
+  }
+
+  function note(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    d.style.cssText = `padding:16px; text-align:center; color:var(--mute,#aab0ba); font-family:${FONT_UI};`;
+    return d;
   }
 
   function initFloatingUI() {
     if (document.getElementById('r52_floating_btn')) return;
     const btn = document.createElement('button');
     btn.id = 'r52_floating_btn';
-    btn.textContent = '⚡';
-    btn.style.cssText = 'position:fixed; bottom:20px; left:20px; z-index:2147483647; width:50px; height:50px; border-radius:50%; background:#ef4444; color:#fff; font-size:24px; border:2px solid #fff; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center;';
+    btn.className = 'btn';
+    btn.textContent = 'Tuner52';
+    btn.style.cssText = 'position:fixed; bottom:calc(16px + var(--safeB, 0px)); left:calc(16px + var(--safeL, 0px)); z-index:2147483647; min-height:40px; padding:0 16px; font-size:13px;';
     document.body.appendChild(btn);
 
     const modal = document.createElement('div');
     modal.id = 'r52_modal';
-    modal.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:2147483647; display:none; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:2147483647; display:none; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;';
     const inner = document.createElement('div');
-    inner.style.cssText = 'background:#1a1a1a; width:90%; max-width:400px; height:80vh; border-radius:12px; border:1px solid #333; display:flex; flex-direction:column; overflow:hidden; font-family:monospace; color:#fff;';
+    inner.style.cssText = `background:var(--s1,#14171c); width:min(100%,520px); height:min(100%,640px); border:1px solid var(--edge,#2a2f39); border-radius:var(--r,6px); display:flex; flex-direction:column; overflow:hidden; color:var(--ink,#f4f4f1); font-family:${FONT_UI}; box-shadow:0 18px 48px rgba(0,0,0,.55);`;
+
     const header = document.createElement('div');
-    header.style.cssText = 'padding:15px; background:#111; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center;';
-    header.innerHTML = '<span style="font-weight:bold; font-size:16px; color:#ef4444;">TUNER52</span>';
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.style.cssText = 'background:none; border:none; color:#aaa; font-size:20px; cursor:pointer;';
+    header.style.cssText = 'display:flex; align-items:center; gap:14px; padding:14px 16px 12px; border-bottom:1px solid var(--edge,#2a2f39); position:relative;';
+    const title = document.createElement('h2');
+    title.textContent = 'Tuner52';
+    title.style.cssText = `margin:0; font:italic 800 28px/1 ${FONT_HEAD}; letter-spacing:.01em; text-transform:uppercase;`;
+    const accent = document.createElement('div');
+    accent.style.cssText = 'position:absolute; left:16px; bottom:-1px; width:56px; height:3px; background:var(--red,#e0282f);';
+    const closeBtn = mkBtn('Close', true);
+    closeBtn.style.marginLeft = 'auto';
     closeBtn.onclick = () => modal.style.display = 'none';
-    header.appendChild(closeBtn);
+    header.appendChild(title); header.appendChild(accent); header.appendChild(closeBtn);
 
     const content = document.createElement('div');
     content.id = 'r52_modal_content';
-    content.style.cssText = 'flex:1; overflow-y:auto; padding:15px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; align-content:flex-start;';
+    content.style.cssText = 'flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:4px 12px 18px;';
     inner.appendChild(header); inner.appendChild(content); modal.appendChild(inner); document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
     btn.onclick = () => { modal.style.display = 'flex'; renderMods(content); };
   }
 
-  function updateNativeUI(optBox) {
+  function updateNativeUI() {
     const mUI = document.getElementById('r52_mods_ui');
     const fUI = document.getElementById('r52_fixes_ui');
     const mBtn = document.getElementById('r52_mods_btn');
     const fBtn = document.getElementById('r52_fixes_btn');
     const oList = document.getElementById('oList');
-
+    const crumb = document.getElementById('oCrumb');
     if (!mUI || !fUI || !mBtn || !fBtn || !oList) return;
 
-    if (tab === 'mods') {
+    const setOn = (b, on) => { b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); };
+
+    if (tab === 'mods' || tab === 'fixes') {
       oList.style.display = 'none';
-      fUI.style.display = 'none'; mUI.style.display = 'flex';
-      mBtn.classList.add('on'); fBtn.classList.remove('on');
-      renderMods(mUI);
-    } else if (tab === 'fixes') {
-      oList.style.display = 'none';
-      mUI.style.display = 'none'; fUI.style.display = 'flex';
-      fBtn.classList.add('on'); mBtn.classList.remove('on');
-      renderFixes(fUI);
+      mUI.style.display = tab === 'mods' ? 'block' : 'none';
+      fUI.style.display = tab === 'fixes' ? 'block' : 'none';
+      setOn(mBtn, tab === 'mods'); setOn(fBtn, tab === 'fixes');
+      // un-highlight the game's own tabs while one of ours is open
+      document.querySelectorAll('#oTabs button').forEach(b => { if (b !== mBtn && b !== fBtn) setOn(b, false); });
+      if (crumb) crumb.textContent = tab === 'mods' ? 'Tuner52' : 'Fixes';
+      if (tab === 'mods') renderMods(mUI); else renderFixes(fUI);
+      const main = document.getElementById('oMain');
+      if (main) main.scrollTop = 0;
     } else {
       oList.style.display = '';
       mUI.style.display = 'none'; fUI.style.display = 'none';
-      mBtn.classList.remove('on'); fBtn.classList.remove('on');
+      setOn(mBtn, false); setOn(fBtn, false);
     }
   }
 
-  function buildNativeTabs(optBox, optTabs) {
+  function makeTab(id, label, icon) {
+    const b = document.createElement('button');
+    b.id = id;
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', 'false');
+    b.innerHTML = icon + '<span>' + label + '</span>';
+    return b;
+  }
+
+  function ensureNativeTabs(optTabs) {
+    let built = false;
     if (!document.getElementById('r52_mods_btn')) {
-      const b1 = document.createElement('button'); b1.id = 'r52_mods_btn'; b1.className = 'mi'; b1.setAttribute('role','tab'); b1.textContent = '⚡ TUNER52'; b1.style.color = '#ef4444';
-      const b2 = document.createElement('button'); b2.id = 'r52_fixes_btn'; b2.className = 'mi'; b2.setAttribute('role','tab'); b2.textContent = '🛠️ FIXES'; b2.style.color = '#4ade80';
-
+      const b1 = makeTab('r52_mods_btn', 'Tuner52', ICON_MODS);
+      const b2 = makeTab('r52_fixes_btn', 'Fixes', ICON_FIXES);
+      b1.onclick = () => {
+        tab = 'mods';
+        secretTaps++; clearTimeout(secretT); secretT = setTimeout(() => secretTaps = 0, 1500);
+        let unlockedNow = false;
+        if (secretTaps >= 5 && !SECRET) {
+          secretTaps = 0;
+          SECRET = true;
+          localStorage.setItem('r52_secret', 'true');
+          storeCache = null;
+          unlockedNow = true;
+        }
+        updateNativeUI();
+        if (unlockedNow) refreshMods();
+      };
+      b2.onclick = () => { tab = 'fixes'; updateNativeUI(); };
       optTabs.appendChild(b1); optTabs.appendChild(b2);
-
-      b1.onclick = () => { tab = 'mods'; updateNativeUI(optBox); };
-      b2.onclick = () => { tab = 'fixes'; updateNativeUI(optBox); };
+      built = true;
     }
     if (!document.getElementById('r52_mods_ui')) {
       const oList = document.getElementById('oList');
-      const parent = oList.parentNode;
-
-      // CRITICAL FIX: Make the parent a flex column so our container can stretch to fill it
+      const parent = oList && oList.parentNode;
       if (parent) {
-        parent.style.display = 'flex';
-        parent.style.flexDirection = 'column';
-        parent.style.overflow = 'hidden';
-      }
-
-      const c1 = document.createElement('div');
-      c1.id = 'r52_mods_ui';
-      c1.style.cssText = 'display:none; flex-wrap: wrap; justify-content: space-between; gap:10px; width:100%; padding: 10px; box-sizing: border-box; overflow-y: auto; align-content: flex-start; flex: 1; min-height: 0;';
-
-      const c2 = document.createElement('div');
-      c2.id = 'r52_fixes_ui';
-      c2.style.cssText = 'display:none; flex-direction:column; gap:10px; width:100%; padding: 10px; box-sizing: border-box; overflow-y: auto; flex: 1; min-height: 0;';
-
-      if (oList && parent) {
-        parent.appendChild(c1);
-        parent.appendChild(c2);
+        // Plain block containers inside the game's own scrolling #oMain.
+        // The game's container styles are left alone so scrolling keeps working on every tab.
+        const c1 = document.createElement('div'); c1.id = 'r52_mods_ui'; c1.setAttribute('role', 'list'); c1.style.display = 'none';
+        const c2 = document.createElement('div'); c2.id = 'r52_fixes_ui'; c2.setAttribute('role', 'list'); c2.style.display = 'none';
+        parent.appendChild(c1); parent.appendChild(c2);
+        built = true;
       }
     }
-    updateNativeUI(optBox);
+    if (built) updateNativeUI();
   }
 
   setInterval(() => {
-    hijackSocials();
-
     const optTitle = document.getElementById('oTitle');
     const optTabs = document.getElementById('oTabs');
     const optBox = document.querySelector('.optbox');
+    const fb = document.getElementById('r52_floating_btn');
 
     if (optTitle && optTabs && optBox) {
-      const fb = document.getElementById('r52_floating_btn');
       if (fb) fb.style.display = 'none';
 
       if (!optTitle.dataset.hooked) {
@@ -280,7 +345,9 @@
             taps = 0;
             UNLOCKED = true;
             localStorage.setItem('r52_unlocked', 'true');
-            buildNativeTabs(optBox, optTabs);
+            tab = 'mods';
+            ensureNativeTabs(optTabs);
+            updateNativeUI();
           }
         };
       }
@@ -288,193 +355,173 @@
       if (!optTabs.dataset.hooked) {
         optTabs.dataset.hooked = '1';
         optTabs.addEventListener('click', e => {
-          const btn = e.target.closest('button');
-          if (btn && btn.id !== 'r52_mods_btn' && btn.id !== 'r52_fixes_btn') {
+          const b = e.target.closest('button');
+          if (b && b.id !== 'r52_mods_btn' && b.id !== 'r52_fixes_btn') {
             tab = null;
-            updateNativeUI(optBox);
+            updateNativeUI();
           }
         });
       }
 
-      if (UNLOCKED) buildNativeTabs(optBox, optTabs);
+      if (UNLOCKED) ensureNativeTabs(optTabs);
     } else {
+      if (fb) fb.style.display = '';
       initFloatingUI();
     }
   }, 250);
 
-  function btn(txt, col, act) {
-    const b = document.createElement('b'); b.textContent = txt;
-    b.style.cssText = `background:${col}; color:#fff; cursor:pointer; padding:8px 12px; border-radius:6px; font-size:12px; min-width:70px; text-align:center; flex:1;`;
-    b.onclick = act; return b;
+  // Install / remove with a two-step confirm on remove
+  async function handleInstallClick(m, b, done) {
+    if (installed.includes(m.id)) {
+      if (b.dataset.c === '1') {
+        clearTimeout(b._t);
+        installed = installed.filter(x => x !== m.id);
+        delete active[m.id];
+        localStorage.removeItem('r52_ui_' + m.id);
+        save();
+        cleanupMod(m.id);
+        done();
+      } else {
+        b.dataset.c = '1'; b.textContent = 'Sure?'; b.classList.remove('btn2');
+        b._t = setTimeout(() => { b.dataset.c = '0'; b.textContent = 'Remove'; b.classList.add('btn2'); }, 3000);
+      }
+    } else {
+      b.disabled = true; b.textContent = 'Wait...';
+      if (!installed.includes(m.id)) installed.push(m.id);
+      active[m.id] = true;
+      await loadMod(m);
+      save();
+      done();
+    }
   }
 
-  // --- NEW DETAIL MODAL ---
+  // --- MOD DETAIL MODAL ---
   function openModDetail(m) {
     let modal = document.getElementById('r52_detail_modal');
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'r52_detail_modal';
-      modal.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:2147483647; display:none; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:2147483647; display:none; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;';
+      modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
       document.body.appendChild(modal);
     }
+    modal.innerHTML = '';
 
-    const isInstalled = installed.includes(m.id);
+    const box = document.createElement('div');
+    box.style.cssText = `background:var(--s1,#14171c); border:1px solid var(--edge,#2a2f39); border-radius:var(--r,6px); width:min(100%,380px); max-height:100%; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:14px; color:var(--ink,#f4f4f1); font-family:${FONT_UI}; box-shadow:0 18px 48px rgba(0,0,0,.55); box-sizing:border-box;`;
 
-    let optionsHtml = '';
-    if (m.options && m.options.length > 0) {
-      optionsHtml = `<select id="r52_detail_opt" style="background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:4px; font-size:14px; width:100%; margin-bottom:15px; outline:none;">
-        ${m.options.map(opt => `<option value="${opt}" ${opt === (localStorage.getItem('r52_opt_' + m.id) || m.options[0]) ? 'selected' : ''}>${opt}</option>`).join('')}
-      </select>`;
+    const h = document.createElement('h2');
+    h.textContent = m.name;
+    h.style.cssText = `margin:0; font:italic 800 26px/1 ${FONT_HEAD}; letter-spacing:.01em; text-transform:uppercase; color:${m.isSecret ? 'var(--red,#e0282f)' : 'inherit'};`;
+    const p = document.createElement('p');
+    p.textContent = m.desc || '';
+    p.style.cssText = 'margin:0; font-size:14px; line-height:1.45; color:var(--mute,#aab0ba);';
+    box.appendChild(h); box.appendChild(p);
+
+    if (m.options && m.options.length) {
+      const seg = document.createElement('div');
+      seg.className = 'sSeg';
+      seg.setAttribute('role', 'radiogroup');
+      seg.style.flexWrap = 'wrap';
+      const current = localStorage.getItem('r52_opt_' + m.id) || m.options[0];
+      m.options.forEach(opt => {
+        const ob = document.createElement('button');
+        ob.type = 'button';
+        ob.textContent = opt;
+        ob.setAttribute('role', 'radio');
+        ob.classList.toggle('on', opt === current);
+        ob.setAttribute('aria-checked', opt === current ? 'true' : 'false');
+        ob.onclick = async () => {
+          localStorage.setItem('r52_opt_' + m.id, opt);
+          seg.querySelectorAll('button').forEach(x => { const s = x === ob; x.classList.toggle('on', s); x.setAttribute('aria-checked', s ? 'true' : 'false'); });
+          if (installed.includes(m.id) && active[m.id] !== false) { cleanupMod(m.id); await loadMod(m); }
+        };
+        seg.appendChild(ob);
+      });
+      box.appendChild(seg);
     }
 
-    modal.innerHTML = `
-      <div style="background:#1a1a1a; width:90%; max-width:350px; border-radius:12px; border:1px solid #333; padding:20px; display:flex; flex-direction:column; font-family:monospace; color:#fff; position:relative; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-        <button id="r52_close_detail" style="position:absolute; top:10px; right:15px; background:none; border:none; color:#aaa; font-size:20px; cursor:pointer;">✕</button>
-        <h2 style="margin:0 0 10px 0; font-size:18px; color:${m.isSecret?'#ef4444':'#fff'};">${m.name}</h2>
-        <p style="margin:0 0 20px 0; font-size:13px; color:#ccc; line-height:1.5;">${m.desc}</p>
-        ${optionsHtml}
-        <button id="r52_detail_btn" style="background:${isInstalled?'#ef4444':'#3b82f6'}; color:#fff; border:none; padding:12px; border-radius:6px; font-size:14px; font-weight:bold; cursor:pointer; width:100%; transition:background 0.2s;">
-          ${isInstalled ? 'REMOVE' : 'INSTALL'}
-        </button>
-      </div>
-    `;
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex; gap:8px; margin-top:4px;';
+    const closeB = mkBtn('Close', true); closeB.style.flex = '1';
+    const isInst = installed.includes(m.id);
+    const mainB = mkBtn(isInst ? 'Remove' : 'Install', isInst); mainB.style.flex = '1';
+    closeB.onclick = () => { modal.style.display = 'none'; };
+    mainB.onclick = () => handleInstallClick(m, mainB, () => { modal.style.display = 'none'; refreshMods(); });
+    actions.appendChild(closeB); actions.appendChild(mainB);
+    box.appendChild(actions);
 
+    modal.appendChild(box);
     modal.style.display = 'flex';
-
-    document.getElementById('r52_close_detail').onclick = () => modal.style.display = 'none';
-
-    const optSelect = document.getElementById('r52_detail_opt');
-    if (optSelect) {
-      optSelect.onchange = async (e) => {
-        localStorage.setItem('r52_opt_' + m.id, e.target.value);
-        if (installed.includes(m.id) && active[m.id] !== false) {
-          inject(`if(window.__r52ModCleanup&&window.__r52ModCleanup['${m.id}'])window.__r52ModCleanup['${m.id}']();`);
-          await loadMod(m);
-        }
-      };
-    }
-
-    const dbtn = document.getElementById('r52_detail_btn');
-    dbtn.onclick = async () => {
-      dbtn.disabled = true;
-      if (installed.includes(m.id)) {
-        if (dbtn.dataset.c === '1') {
-          installed = installed.filter(x => x !== m.id);
-          delete active[m.id];
-          localStorage.removeItem('r52_ui_' + m.id);
-          localStorage.setItem('r52_installed', JSON.stringify(installed));
-          localStorage.setItem('r52_active', JSON.stringify(active));
-          inject(`if(window.__r52ModCleanup&&window.__r52ModCleanup['${m.id}'])window.__r52ModCleanup['${m.id}']();`);
-          modal.style.display = 'none';
-          const mUI = document.getElementById('r52_mods_ui') || document.getElementById('r52_modal_content');
-          if (mUI) { mUI.dataset.loaded = '0'; renderMods(mUI); }
-        } else {
-          dbtn.dataset.c = '1'; dbtn.textContent = 'SURE?'; dbtn.style.background = '#ef4444'; dbtn.disabled = false;
-          dbtn._t = setTimeout(() => { dbtn.dataset.c = '0'; dbtn.textContent = 'REMOVE'; }, 3000);
-        }
-      } else {
-        dbtn.textContent = 'LOADING...'; dbtn.style.background = '#5a2a2a';
-        if (!installed.includes(m.id)) installed.push(m.id);
-        active[m.id] = true;
-        await loadMod(m);
-        localStorage.setItem('r52_installed', JSON.stringify(installed));
-        localStorage.setItem('r52_active', JSON.stringify(active));
-        modal.style.display = 'none';
-        const mUI = document.getElementById('r52_mods_ui') || document.getElementById('r52_modal_content');
-        if (mUI) { mUI.dataset.loaded = '0'; renderMods(mUI); }
-      }
-    };
   }
 
   function renderFixes(c) {
     c.innerHTML = '';
-    const addFix = (title, desc, bTxt, col, act) => {
-      const r = document.createElement('div'); r.className = 'orow'; r.style.padding = '10px'; r.style.background = '#222'; r.style.borderRadius = '8px'; r.style.display = 'flex'; r.style.justifyContent = 'space-between'; r.style.alignItems = 'center'; r.style.marginBottom = '8px'; r.style.width = '100%'; r.style.boxSizing = 'border-box';
-      r.innerHTML = `<div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;"><span style="font-size:13px; color:#fff; font-weight:bold;">${title}</span><span style="font-size:10px; color:#aaa; text-transform:none;">${desc}</span></div>`;
-      r.appendChild(btn(bTxt, col, act)); c.appendChild(r);
+    const add = (title, desc, label, secondary, act) => {
+      const b = mkBtn(label, secondary);
+      b.onclick = act;
+      c.appendChild(row(title, desc, b));
     };
-    addFix('Reset Car Model', 'Restores default car.', 'RESET', '#3b82f6', () => {
+
+    c.appendChild(section('Game'));
+    add('Reset car model', 'Restores the default car.', 'Reset', true, () => {
       inject(`if(window.__r52ModCleanup){ if(window.__r52ModCleanup['glb_gltf_loader'])window.__r52ModCleanup['glb_gltf_loader'](); if(window.__r52ModCleanup['bridge'])window.__r52ModCleanup['bridge'](); } if(window.__r52unswap)window.__r52unswap(); alert('Car reset');`);
     });
-    addFix('Clear Game Data', 'Wipes saves/ghosts.', 'CLEAR', '#ef4444', () => {
+    add('Clear game data', 'Wipes saves and ghosts.', 'Clear', false, () => {
       if(!confirm('Wipe local saves?')) return;
       let cl=0, pats=[/^rd_202/,/^rd_ghost$/,/^rd_skids$/,/^rd_paint2_/,/^rd_art2_/,/^rd_wheels$/,/^rd_recent_cols$/,/^rd_rqdrop$/,/^rallydaily_/];
       for(let i=localStorage.length-1;i>=0;i--){ let k=localStorage.key(i); for(let p of pats){ if(p.test(k)){ localStorage.removeItem(k); cl++; break; } } }
       alert('Cleared '+cl+' keys.');
     });
+
+    c.appendChild(section('Tuner52'));
+    add('Factory reset', 'Removes all mods and settings, then reloads.', 'Reset', false, async () => {
+      if(!confirm('Factory reset Tuner52? This removes all installed mods and settings, then reloads the page.')) return;
+      await inject(`if(window.__r52ModCleanup){ Object.keys(window.__r52ModCleanup).forEach(function(k){ try{ window.__r52ModCleanup[k](); }catch(e){} }); } if(window.__r52unswap)window.__r52unswap();`);
+      for(let i=localStorage.length-1;i>=0;i--){ let k=localStorage.key(i); if(k && k.startsWith('r52_')) localStorage.removeItem(k); }
+      location.reload();
+    });
+  }
+
+  function modRow(m) {
+    const isInst = installed.includes(m.id);
+    const b = mkBtn(isInst ? 'Remove' : 'Install', isInst);
+    b.onclick = (e) => { e.stopPropagation(); handleInstallClick(m, b, refreshMods); };
+    const r = row(m.name, m.desc, b);
+    r.style.cursor = 'pointer';
+    if (m.isSecret) r.querySelector('b').style.color = 'var(--red,#e0282f)';
+    r.onclick = () => openModDetail(m);
+    return r;
   }
 
   async function renderMods(c) {
     if (c.dataset.loaded === '1') return;
-    c.innerHTML = '<div style="color:#aaa; text-align:center; width: 100%;">Loading...</div>';
-    let all = [];
-    try { all = JSON.parse(await fetchText(REPO + 'store.json')); } catch(e) { c.innerHTML = '<div style="color:red;text-align:center; width: 100%;">Failed to load store</div>'; return; }
-    if (SECRET) { try { const s = JSON.parse(await fetchText(REPO + '45yllar.json')); s.forEach(m=>m.isSecret=true); all = all.concat(s); } catch(e) {} }
-    mods = all.filter((v,i,a)=>a.findIndex(t=>(t.id === v.id))===i);
+    if (!storeCache) {
+      c.innerHTML = '';
+      c.appendChild(note('Loading...'));
+      let all = [];
+      try { all = JSON.parse(await fetchText(REPO + 'store.json')); }
+      catch(e) { c.innerHTML = ''; c.appendChild(note('Failed to load store')); return; }
+      if (SECRET) { try { const s = JSON.parse(await fetchText(REPO + '45yllar.json')); s.forEach(m => m.isSecret = true); all = all.concat(s); } catch(e) {} }
+      storeCache = all.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+    }
+    mods = storeCache;
     c.innerHTML = ''; c.dataset.loaded = '1';
 
     if (updateAvailable) {
       const banner = document.createElement('div');
-      banner.style.cssText = 'width: 100%; background:#ef4444; color:#fff; padding:10px; border-radius:8px; font-size:12px; text-align:center; cursor:pointer; margin-bottom:5px;';
-      banner.innerHTML = `⚠️ <b>UPDATE AVAILABLE (v${latestVersion})</b><br>Click to copy script.`;
+      banner.textContent = 'Update available (v' + latestVersion + ') - tap to copy script';
+      banner.style.cssText = `margin:10px 0 0; padding:12px 14px; border-radius:var(--r-sm,4px); background:var(--red,#e0282f); color:#fff; font:700 13px ${FONT_HEAD}; letter-spacing:.08em; text-transform:uppercase; text-align:center; cursor:pointer;`;
       banner.onclick = async () => {
-        await navigator.clipboard.writeText(latestScriptCode);
-        banner.style.background = '#4ade80';
-        banner.textContent = '✅ COPIED!';
+        try { await navigator.clipboard.writeText(latestScriptCode); banner.textContent = 'Copied'; }
+        catch(e) { banner.textContent = 'Copy failed'; }
       };
       c.appendChild(banner);
     }
 
-    mods.forEach(m => {
-      const isInstalled = installed.includes(m.id);
-
-      const r = document.createElement('div');
-      r.style.cssText = 'background:#222; border:1px solid #333; padding:10px; border-radius:8px; display:flex; flex-direction:column; justify-content:space-between; gap:8px; cursor:pointer; transition:border-color 0.2s; width: calc(50% - 5px); box-sizing: border-box; margin-bottom: 10px;';
-      r.onmouseover = () => r.style.borderColor = '#555';
-      r.onmouseout = () => r.style.borderColor = '#333';
-
-      const top = document.createElement('div');
-      top.innerHTML = `
-        <div style="font-size:13px; font-weight:bold; color:${m.isSecret?'#ef4444':'#fff'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.name}</div>
-        <div style="font-size:11px; color:#aaa; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-top:4px; line-height:1.2;">${m.desc}</div>
-      `;
-      r.appendChild(top);
-
-      const b = btn(isInstalled?'REMOVE':'INSTALL', isInstalled?'#ef4444':'#3b82f6', async (e) => {
-        e.stopPropagation();
-        e.target.disabled = true;
-        if (installed.includes(m.id)) {
-          if (e.target.dataset.c === '1') {
-            clearTimeout(e.target._t);
-            installed = installed.filter(x => x !== m.id);
-            delete active[m.id];
-            localStorage.removeItem('r52_ui_' + m.id);
-            localStorage.setItem('r52_installed', JSON.stringify(installed));
-            localStorage.setItem('r52_active', JSON.stringify(active));
-            inject(`if(window.__r52ModCleanup&&window.__r52ModCleanup['${m.id}'])window.__r52ModCleanup['${m.id}']();`);
-            c.dataset.loaded = '0'; renderMods(c);
-          } else {
-            e.target.dataset.c = '1'; e.target.textContent = 'SURE?'; e.target.style.background = '#ef4444'; e.target.disabled = false;
-            e.target._t = setTimeout(() => { e.target.dataset.c = '0'; e.target.textContent = 'REMOVE'; e.target.style.background = '#ef4444'; }, 3000);
-          }
-        } else {
-          e.target.textContent = 'WAIT...'; e.target.style.background = '#5a2a2a';
-          if (!installed.includes(m.id)) installed.push(m.id);
-          active[m.id] = true;
-          await loadMod(m);
-          localStorage.setItem('r52_installed', JSON.stringify(installed));
-          localStorage.setItem('r52_active', JSON.stringify(active));
-          c.dataset.loaded = '0'; renderMods(c);
-        }
-      });
-      b.style.padding = '6px';
-      b.style.fontSize = '11px';
-      b.style.minWidth = 'auto';
-
-      r.appendChild(b);
-      r.onclick = () => openModDetail(m);
-
-      c.appendChild(r);
-    });
+    const normal = mods.filter(m => !m.isSecret);
+    const secret = mods.filter(m => m.isSecret);
+    if (normal.length) { c.appendChild(section('Mods')); normal.forEach(m => c.appendChild(modRow(m))); }
+    if (secret.length) { c.appendChild(section('Secret')); secret.forEach(m => c.appendChild(modRow(m))); }
   }
 })();
