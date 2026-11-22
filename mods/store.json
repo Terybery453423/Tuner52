@@ -2,7 +2,7 @@
   {
   "id": "global_multiplayer",
   "name": "Global Multiplayer",
-  "desc": "Real online ghost cars via public WebSockets. Enter a room code or leave blank for Global.",
+  "desc": "(under development) Real online ghost cars via public WebSockets. Enter a room code or leave blank for Global.",
   "author": "Terybery453423",
   "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/global_multiplayer.js"
   }, 
