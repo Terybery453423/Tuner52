@@ -63,7 +63,7 @@
   },
   {
   "id": "dust_changer",
-  "name": "Dust Changer",
+  "name": "Dust editor",
   "desc": "Customize the gravel and dust. Change color, size, transparency, or upload a custom PNG.",
   "author": "Terybery453423",
   "settings": [
