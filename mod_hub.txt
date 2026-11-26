@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Tuner52 (RALLY52) - peak (3.0.9)
+// @name         Tuner52 (RALLY52) peak v10
 // @namespace    https://github.com/Terybery453423
-// @version      3.0.9
+// @version      3.0.10
 // @description  Tuner52 - Stealth mod menu for RALLY52.
 // @match        https://rally52.com/*
 // @grant        GM_xmlhttpRequest
@@ -17,13 +17,13 @@
   'use strict';
   if (window.__r52hub) return; window.__r52hub = 1;
 
-  const HUB_VERSION = '3.0.9';
+  const HUB_VERSION = '3.0.10';
 
   const REPO = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/';
   const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
   const ALLOWED = [REPO, ROOT_URL];
 
-  let SECRET = localStorage.getItem('r52_secret') === 'true';
+  let SECRET = localStorage.getItem('r52_secret') === 'false';
   let UNLOCKED = localStorage.getItem('r52_unlocked') === 'true';
   let installed = JSON.parse(localStorage.getItem('r52_installed') || '[]');
   let active = JSON.parse(localStorage.getItem('r52_active') || '{}');
@@ -329,7 +329,214 @@
     if (built) updateNativeUI();
   }
 
+  // --- Infinite restart: 4th option on the "Restart key" setting + a replacement Restart button in the pause menu ---
+  // It reuses the game's own retry() (teleport to the start, countdown, timer reset) but keeps the current
+  // server run open, so restarting does not start a new attempt. Real (non-guest) accounts get a ban warning.
+  let inf = localStorage.getItem('r52_infrestart') === 'true';
+  let ackId = null, gate = false, hooked = false;
+
+  // Runs in the page context. Wrappers only act while window.__r52inf is true, shortly after retry() was called mid-run.
+  function infHookFn() {
+    if (window.__r52infHook) return;
+    window.__r52infHook = true;
+    var until = 0;
+    function wrap(name, make) {
+      try {
+        var o = window[name];
+        if (typeof o !== 'function' || o.__r52inf) return false;
+        var n = make(o); n.__r52inf = true; window[name] = n;
+        return true;
+      } catch (e) { return false; }
+    }
+    window.__r52infOk = {
+      retry: wrap('retry', function (orig) {
+        return function () {
+          try { if (window.__r52inf && (state === 'race' || state === 'count') && RD.run) until = performance.now() + 15000; } catch (e) {}
+          return orig.apply(this, arguments);
+        };
+      }),
+      canStartRun: wrap('canStartRun', function (orig) {
+        return function () { return (window.__r52inf && performance.now() < until) ? true : orig.apply(this, arguments); };
+      }),
+      endRunHook: wrap('endRunHook', function (orig) {
+        return function (fin) { if (window.__r52inf && performance.now() < until && !fin) return; return orig.apply(this, arguments); };
+      }),
+      beginRunHook: wrap('beginRunHook', function (orig) {
+        return function () {
+          try {
+            if (window.__r52inf && performance.now() < until && RD.run) { try { runStatReset(); } catch (e) {} return Promise.resolve('ok'); }
+          } catch (e) {}
+          return orig.apply(this, arguments);
+        };
+      }),
+      restartCost: wrap('restartCost', function (orig) {
+        return function () { return window.__r52inf ? null : orig.apply(this, arguments); };
+      })
+    };
+  }
+
+  // Page context: leave the pause screen the same way the game's own start() does, then restart.
+  function infRestartFn() {
+    window.__r52infRestart = false;
+    try {
+      if (typeof gamePaused !== 'undefined' && gamePaused) {
+        gamePaused = false; resumeCd = 0;
+        var ov = document.getElementById('pauseOv'); if (ov) ov.style.display = 'none';
+        try { AC && AC.resume(); } catch (e) {}
+      }
+    } catch (e) {}
+    try { retry(); window.__r52infRestart = true; } catch (e) { window.__r52infErr = String(e); }
+  }
+
+  function ensureHook() {
+    if (hooked) return;
+    hooked = true;
+    inject('(' + infHookFn.toString() + ')();');
+  }
+
+  // guest check: RD.sess.guest in the page context
+  async function getSess() {
+    try {
+      await Promise.race([
+        inject('try{window.__r52sess=JSON.stringify({has:!!RD.sess,guest:!!(RD.sess&&RD.sess.guest),id:(RD.sess&&RD.sess.id)||null})}catch(e){window.__r52sess=null}'),
+        new Promise(r => setTimeout(r, 1500))
+      ]);
+      const raw = unsafeWindow.__r52sess;
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  async function refreshGate() {
+    const s = await getSess();
+    gate = !!(s && s.has && (s.guest || ackId === s.id));
+    unsafeWindow.__r52inf = inf && gate;
+    return s;
+  }
+
+  function showBanWarning(unknown) {
+    return new Promise(resolve => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:2147483647; display:flex; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;';
+      const box = document.createElement('div');
+      box.style.cssText = `background:var(--s1,#14171c); border:1px solid var(--red,#e0282f); border-radius:var(--r,6px); width:min(100%,380px); padding:20px; display:flex; flex-direction:column; gap:14px; color:var(--ink,#f4f4f1); font-family:${FONT_UI}; box-shadow:0 18px 48px rgba(0,0,0,.55); box-sizing:border-box;`;
+      const h = document.createElement('h2');
+      h.textContent = 'Warning';
+      h.style.cssText = `margin:0; font:italic 800 26px/1 ${FONT_HEAD}; letter-spacing:.01em; text-transform:uppercase; color:var(--red,#e0282f);`;
+      const p = document.createElement('p');
+      p.textContent = (unknown ? 'Could not check whether this is a guest account, so it is treated as a real one. ' : 'You are not on a guest account. ') +
+        'Infinite restart gets around the game\u2019s attempt limit. If the game detects it, your account can be temporarily or permanently banned. Use a guest account instead.';
+      p.style.cssText = 'margin:0; font-size:14px; line-height:1.45; color:var(--mute,#aab0ba);';
+      const row2 = document.createElement('div');
+      row2.style.cssText = 'display:flex; gap:8px;';
+      const done = v => { modal.remove(); resolve(v); };
+      const cancel = mkBtn('Cancel'); cancel.style.flex = '1'; cancel.onclick = () => done(false);
+      const go = mkBtn('Enable anyway', true); go.style.flex = '1'; go.onclick = () => done(true);
+      row2.appendChild(cancel); row2.appendChild(go);
+      box.appendChild(h); box.appendChild(p); box.appendChild(row2);
+      modal.appendChild(box);
+      modal.addEventListener('click', e => { if (e.target === modal) done(false); });
+      document.body.appendChild(modal);
+    });
+  }
+
+  // guests pass straight through; real accounts must accept the warning once per account per page load
+  async function ensureAllowed() {
+    const s = await getSess();
+    if (s && s.has && s.guest) return true;
+    const id = (s && s.id) || 'unknown';
+    if (ackId === id) return true;
+    const ok = await showBanWarning(!(s && s.has));
+    if (ok) ackId = id;
+    return ok;
+  }
+
+  async function setInf(on) {
+    if (on) {
+      if (!(await ensureAllowed())) { paintInf(); return; }
+      inf = true; localStorage.setItem('r52_infrestart', 'true'); ensureHook();
+    } else {
+      inf = false; localStorage.removeItem('r52_infrestart');
+    }
+    await refreshGate();
+    paintInf();
+  }
+
+  function onSegClick(e) {
+    const b = e.target.closest && e.target.closest('button');
+    if (!b) return;
+    if (b.id === 'r52_inf_seg') { e.preventDefault(); e.stopPropagation(); setInf(true); }
+    else if (inf) setInf(false); // a native option was picked: leave the game to handle it
+  }
+
+  function paintInf() {
+    const seg = document.querySelector('#oList .sSeg[aria-label="Restart key"]');
+    if (seg) {
+      const mine = seg.querySelector('#r52_inf_seg');
+      if (mine) {
+        mine.classList.toggle('on', inf);
+        mine.setAttribute('aria-checked', inf ? 'true' : 'false');
+        if (inf) seg.querySelectorAll('button').forEach(b => { if (b !== mine) { b.classList.remove('on'); b.setAttribute('aria-checked', 'false'); } });
+      }
+    }
+    syncPause();
+  }
+
+  function syncPause() {
+    const menu = document.getElementById('pauseMenu');
+    if (!menu) return;
+    const nat = menu.querySelector('[data-a="restart"]');
+    if (!nat) return;
+    let mine = document.getElementById('r52_inf_rst');
+    const note = document.getElementById('pNote');
+    const txt = note && note.firstChild && note.firstChild.nodeType === 3 ? note.firstChild : null;
+    if (inf) {
+      nat.style.display = 'none';
+      if (!mine) {
+        mine = document.createElement('button');
+        mine.id = 'r52_inf_rst'; mine.type = 'button'; mine.className = 'mi';
+        mine.innerHTML = 'Restart<i>\u221e</i>';
+        mine.onclick = async () => {
+          mine.disabled = true;
+          try {
+            if (!(await ensureAllowed())) return;
+            await refreshGate();
+            await Promise.race([inject('(' + infRestartFn.toString() + ')();'), new Promise(r => setTimeout(r, 2000))]);
+            if (unsafeWindow.__r52infRestart !== true) nat.click(); // fall back to the game's own button
+          } finally { mine.disabled = false; }
+        };
+        nat.parentNode.insertBefore(mine, nat.nextSibling);
+      }
+      if (txt) { if (note.dataset.r52o === undefined) note.dataset.r52o = txt.nodeValue; txt.nodeValue = 'Infinite restart is on: restarting does not use up the attempt.'; }
+    } else {
+      nat.style.display = '';
+      if (mine) mine.remove();
+      if (txt && note.dataset.r52o !== undefined) { txt.nodeValue = note.dataset.r52o; delete note.dataset.r52o; }
+    }
+  }
+
+  function syncInf() {
+    const seg = document.querySelector('#oList .sSeg[aria-label="Restart key"]');
+    if (seg) {
+      if (!seg.querySelector('#r52_inf_seg')) {
+        const b = document.createElement('button');
+        b.id = 'r52_inf_seg'; b.type = 'button'; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', 'false');
+        b.textContent = 'Infinite';
+        seg.appendChild(b);
+      }
+      if (!seg.dataset.r52inf) { seg.dataset.r52inf = '1'; seg.addEventListener('click', onSegClick, true); }
+      paintInf();
+    }
+    const pov = document.getElementById('pauseOv');
+    if (pov && !pov.dataset.r52obs) { pov.dataset.r52obs = '1'; new MutationObserver(syncPause).observe(pov, { childList: true, subtree: true }); }
+    syncPause();
+  }
+
+  try { localStorage.removeItem('r52_fov'); } catch (e) {}
+  if (inf) { ensureHook(); refreshGate(); }
+  setInterval(() => { if (inf) refreshGate(); }, 3000);
+
   setInterval(() => {
+    syncInf();
     const optTitle = document.getElementById('oTitle');
     const optTabs = document.getElementById('oTabs');
     const optBox = document.querySelector('.optbox');
