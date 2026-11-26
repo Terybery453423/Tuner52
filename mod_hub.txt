@@ -23,7 +23,7 @@
   const ROOT_URL = 'https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mod_hub.txt';
   const ALLOWED = [REPO, ROOT_URL];
 
-  let SECRET = localStorage.getItem('r52_secret') === 'false';
+  let SECRET = localStorage.getItem('r52_secret') === 'true';
   let UNLOCKED = localStorage.getItem('r52_unlocked') === 'true';
   let installed = JSON.parse(localStorage.getItem('r52_installed') || '[]');
   let active = JSON.parse(localStorage.getItem('r52_active') || '{}');
