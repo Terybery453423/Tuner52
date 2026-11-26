@@ -1,10 +1,12 @@
-// == Dust Changer ==
-// Changes the size, colour, and transparency of the game's dust and gravel particles.
+// == Dust Changer (Custom Textures) ==
 (function(){
   if (window.__r52_dustchanger) return;
   window.__r52_dustchanger = true;
 
   const ID = 'dust_changer';
+  const texLoader = new THREE.TextureLoader();
+  let currentTexture = null;
+  let currentUrl = "";
 
   function clean(raw) {
     raw = raw || {};
@@ -17,7 +19,8 @@
     return { 
       color: col, 
       transparency: num(raw.transparency, 0, 0, 100),
-      size: num(raw.size, 100, 10, 300)
+      size: num(raw.size, 100, 10, 300),
+      texture: typeof raw.texture === 'string' ? raw.texture : ''
     };
   }
 
@@ -36,19 +39,34 @@
     return null;
   }
 
+  function loadTex(url) {
+    if (url === currentUrl) return;
+    currentUrl = url;
+    if (!url) {
+      currentTexture = null;
+      return;
+    }
+    // Load the Base64 image into a Three.js texture
+    texLoader.load(url, (tex) => {
+      tex.magFilter = THREE.NearestFilter; // Keeps pixel art crisp
+      tex.minFilter = THREE.NearestFilter;
+      currentTexture = tex;
+    });
+  }
+
   function apply() {
+    if (cfg.texture !== currentUrl) loadTex(cfg.texture);
+
     const sc = findScene();
     if (!sc) return;
 
-    // Convert hex to THREE.Color
     const targetColor = new THREE.Color(cfg.color);
     const opacityMult = Math.max(0, 1 - (cfg.transparency / 100));
     const sizeMult = cfg.size / 100;
 
     sc.traverse(obj => {
-      // 1. Gravel Particles (THREE.Points)
+      // 1. Gravel Particles
       if (obj.isPoints && obj.material && obj.material.type === 'PointsMaterial') {
-        // Store original values on first encounter
         if (obj.userData.r52_baseSize === undefined) {
           obj.userData.r52_baseSize = obj.material.size || 1;
           obj.userData.r52_baseOpacity = obj.material.opacity;
@@ -57,10 +75,16 @@
         obj.material.color.copy(targetColor);
         obj.material.opacity = obj.userData.r52_baseOpacity * opacityMult;
         obj.material.size = obj.userData.r52_baseSize * sizeMult;
-        obj.material.needsUpdate = true;
+        
+        // Apply custom texture
+        if (obj.material.map !== currentTexture) {
+          obj.material.map = currentTexture;
+          obj.material.alphaTest = currentTexture ? 0.1 : 0; // Fix transparent PNGs
+          obj.material.needsUpdate = true;
+        }
       }
 
-      // 2. Dust Puffs (Mesh with LatheGeometry)
+      // 2. Dust Puffs
       if (obj.isMesh && obj.geometry && obj.geometry.type === 'LatheGeometry') {
         if (obj.userData.r52_baseScale === undefined) {
           obj.userData.r52_baseScale = obj.scale.x || 1;
@@ -70,14 +94,19 @@
         obj.material.color.copy(targetColor);
         obj.material.opacity = obj.userData.r52_baseOpacity * opacityMult;
         
-        // Scale the mesh for size
         const s = obj.userData.r52_baseScale * sizeMult;
         obj.scale.set(s, s, s);
+
+        // Apply custom texture (MeshBasicMaterial uses `map`)
+        if (obj.material.map !== currentTexture) {
+          obj.material.map = currentTexture;
+          obj.material.alphaTest = currentTexture ? 0.1 : 0;
+          obj.material.needsUpdate = true;
+        }
       }
     });
   }
 
-  // Listen for live updates from the Hub
   function onCfg(e) {
     const d = e && e.detail;
     if (!d || d.id !== ID) return;
@@ -86,16 +115,15 @@
   }
   window.addEventListener('r52_cfg', onCfg);
 
-  // Constantly apply because the game recycles and resets these particles every few milliseconds
   const timer = setInterval(apply, 100);
 
   window.__r52ModCleanup = window.__r52ModCleanup || {};
   window.__r52ModCleanup[ID] = function() {
     clearInterval(timer);
     window.removeEventListener('r52_cfg', onCfg);
+    if (currentTexture) { currentTexture.dispose(); currentTexture = null; }
     delete window.__r52_dustchanger;
     
-    // Attempt to restore defaults
     const sc = findScene();
     if (sc) {
       sc.traverse(obj => {
@@ -103,14 +131,19 @@
           obj.material.size = obj.userData.r52_baseSize;
           obj.material.opacity = obj.userData.r52_baseOpacity;
           obj.material.color.setHex(0xffffff);
+          obj.material.map = null;
+          obj.material.alphaTest = 0;
+          obj.material.needsUpdate = true;
         }
         if (obj.isMesh && obj.userData.r52_baseScale !== undefined) {
           obj.material.opacity = obj.userData.r52_baseOpacity;
           obj.scale.setScalar(obj.userData.r52_baseScale);
           obj.material.color.setHex(0xffffff);
+          obj.material.map = null;
+          obj.material.alphaTest = 0;
+          obj.material.needsUpdate = true;
         }
       });
     }
-    console.log('[Mod] Dust Changer cleaned up.');
   };
 })();
