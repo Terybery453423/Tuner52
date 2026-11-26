@@ -64,15 +64,16 @@
   {
   "id": "dust_changer",
   "name": "Dust Changer",
-  "desc": "Customize the gravel particles and dust clouds. Change color, size, and transparency.",
+  "desc": "Customize the gravel and dust. Change color, size, transparency, or upload a custom PNG.",
   "author": "Terybery453423",
   "settings": [
+    { "key": "texture", "label": "Custom Texture (PNG)", "type": "image" },
     { "key": "color", "label": "Dust Color", "type": "color", "default": "#ffffff" },
     { "key": "transparency", "label": "Transparency", "type": "range", "min": 0, "max": 100, "step": 1, "unit": "%", "default": 0 },
     { "key": "size", "label": "Size Multiplier", "type": "range", "min": 10, "max": 300, "step": 10, "unit": "%", "default": 100 }
   ],
   "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/dust_changer.js"
-  },
+  }, 
   {
   "id": "skid_changer",
   "name": "Skid Marks",
