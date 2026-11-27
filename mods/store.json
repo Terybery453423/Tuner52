@@ -87,6 +87,16 @@
   ]
   },
   {
+  "id": "cockpit_customizer",
+  "name": "Cockpit Customizer",
+  "desc": "Change the color of your car's interior.",
+  "author": "Terybery453423",
+  "settings": [
+    { "key": "interiorColor", "label": "Interior Color", "type": "color", "default": "#111111" }
+  ],
+  "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/cockpit_customizer.js"
+  }, 
+  {
     "id": "trippy",
     "name": "Trippy Paint",
     "desc": "Generates crazy neon patterns and uploads them directly to your profile.",
