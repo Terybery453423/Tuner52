@@ -88,12 +88,9 @@
   },
   {
   "id": "cockpit_customizer",
-  "name": "Cockpit Customizer",
-  "desc": "Change the color of your car's interior.",
+  "name": "Cockpit Customizer unlocker",
+  "desc": "Unlock customizability.",
   "author": "Terybery453423",
-  "settings": [
-    { "key": "interiorColor", "label": "Interior Color", "type": "color", "default": "#111111" }
-  ],
   "url": "https://raw.githubusercontent.com/Terybery453423/Tuner52/main/mods/cockpit_customizer.js"
   }, 
   {
