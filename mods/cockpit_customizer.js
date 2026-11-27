@@ -1,47 +1,55 @@
-// == Cockpit Customizer ==
+// == Cockpit Unlocker & Probe ==
 (function(){
-  if (window.__r52_cockpitCustom) return;
-  window.__r52_cockpitCustom = true;
+  if (window.__r52_cockpitUnlocker) return;
+  window.__r52_cockpitUnlocker = true;
 
-  let cfg = { interiorColor: '#111111' };
-  try { cfg = JSON.parse(localStorage.getItem('r52_cfg_cockpit_customizer') || '{}'); } catch(e){}
+  console.log("[Mod] Cockpit Unlocker loading...");
 
-  function findScene() {
-    try { let p = cam; while (p.parent) p = p.parent; if (p.type === "Scene") return p; } catch(e){}
-    return null;
-  }
-
-  function applyColor() {
-    const sc = findScene();
-    if (!sc) return;
+  // 1. Force Premium features to be unlocked
+  const unlockPremium = () => {
+    if (typeof window.premiumFromCustom === 'function') {
+      window.premiumFromCustom = function() { return true; };
+    }
+    if (typeof window.customFree === 'function') {
+      window.customFree = function() { return true; };
+    }
+    if (typeof window.premiumExpiryCheck === 'function') {
+      window.premiumExpiryCheck = function() { return true; };
+    }
     
-    const targetColor = new THREE.Color(cfg.interiorColor || '#111111');
+    // Try to unlock the UI button if it exists
+    const premBtn = document.getElementById('bPrem');
+    if (premBtn) {
+      premBtn.style.display = 'none'; // Hide the "Buy Premium" button
+    }
+  };
 
-    sc.traverse(obj => {
-      if (obj.isMesh && obj.material) {
-        // Look for the custom shader that handles the interior
-        if (obj.material.isShaderMaterial && obj.material.uniforms && obj.material.uniforms.uInC) {
-          obj.material.uniforms.uInC.value.copy(targetColor);
-        }
-      }
-    });
-  }
+  unlockPremium();
+  setInterval(unlockPremium, 1000); // Keep enforcing it in case the game resets it
 
-  function onCfg(e) {
-    const d = e && e.detail;
-    if (!d || d.id !== 'cockpit_customizer') return;
-    cfg = d.cfg;
-    applyColor();
-  }
-  window.addEventListener('r52_cfg', onCfg);
+  // 2. Probe the 3D functions to see what they do
+  // This will print to the console when you change parts in the menu
+  const hookFn = (name) => {
+    if (typeof window[name] === 'function') {
+      const orig = window[name];
+      window[name] = function(...args) {
+        console.log(`[Probe] ${name} called with:`, args);
+        return orig.apply(this, args);
+      };
+      console.log(`[Mod] Hooked ${name}`);
+    }
+  };
 
-  const timer = setInterval(applyColor, 1000);
+  setTimeout(() => {
+    hookFn('ckCabinSet');
+    hookFn('ckWheelMesh');
+    hookFn('ckKnobParts');
+    hookFn('ckHelmetGeo');
+  }, 2000);
 
   window.__r52ModCleanup = window.__r52ModCleanup || {};
-  window.__r52ModCleanup['cockpit_customizer'] = function() {
-    clearInterval(timer);
-    window.removeEventListener('r52_cfg', onCfg);
-    delete window.__r52_cockpitCustom;
-    // Reset to default (or let the game handle it on reload)
+  window.__r52ModCleanup['cockpit_unlocker'] = function() {
+    delete window.__r52_cockpitUnlocker;
+    console.log("[Mod] Cockpit Unlocker disabled.");
   };
 })();
